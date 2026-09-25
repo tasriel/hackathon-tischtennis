@@ -7,7 +7,7 @@ const WALL_THREAD = "#b8c0ca";
 const BEAM = "#192237";
 const LIGHT = "#f8fbff";
 
-function ClothWall({ position, rotation, size }: { position: [number, number, number]; rotation?: [number, number, number]; size: [number, number] }) {
+function ClothWall({ position, rotation = [0, 0, 0], size }: { position: [number, number, number]; rotation?: [number, number, number]; size: [number, number] }) {
   const [w, h] = size;
   return (
     <group position={position} rotation={rotation}>
