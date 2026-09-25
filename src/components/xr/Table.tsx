@@ -36,6 +36,7 @@ export const Table = forwardRef<{ far: THREE.MeshStandardMaterial | null; net: T
             color="#1d4f8a"
             transparent
             opacity={0}
+            depthWrite={false}
             roughness={0.6}
           />
         </mesh>
@@ -49,6 +50,7 @@ export const Table = forwardRef<{ far: THREE.MeshStandardMaterial | null; net: T
             color="#eeeeee"
             transparent
             opacity={0}
+            depthWrite={false}
           />
         </mesh>
       </group>
