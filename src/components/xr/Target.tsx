@@ -1,9 +1,8 @@
 import { useFrame } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, type RefObject } from "react";
 import * as THREE from "three";
 import targetAsset from "@/assets/target-quality.glb.asset.json";
 import { BALL_RADIUS, RACKET_RADIUS, TABLE } from "@/lib/constants";
-import type { BallState } from "@/lib/physics";
 import { settings, TARGET_X } from "@/lib/settings";
 import { SceneModel } from "./SceneModel";
 
@@ -37,7 +36,7 @@ function playCelebration() {
 
 export type TargetImpact = { x: number; z: number; sequence: number };
 
-export function Target({ impact }: { impact: React.RefObject<TargetImpact> }) {
+export function Target({ impact }: { impact: RefObject<TargetImpact> }) {
   const root = useRef<THREE.Group>(null);
   const model = useRef<THREE.Group>(null);
   const glow = useRef<THREE.Mesh>(null);
