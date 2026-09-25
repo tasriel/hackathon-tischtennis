@@ -19,7 +19,7 @@ export const Table = forwardRef<{ far: THREE.MeshStandardMaterial | null; net: T
       const texture = source.clone();
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.wrapS = THREE.RepeatWrapping;
-      texture.repeat.set(Math.round(1.83 / TABLE.netHeight), 1);
+      texture.repeat.set(Math.round(TABLE.width / TABLE.netHeight), 1);
       texture.magFilter = THREE.LinearFilter;
       texture.minFilter = THREE.LinearMipmapLinearFilter;
       texture.needsUpdate = true;
@@ -35,14 +35,15 @@ export const Table = forwardRef<{ far: THREE.MeshStandardMaterial | null; net: T
           rotation={[0, Math.PI / 2, 0]}
           scale={TABLE.length / 1.89957}
         />
-        {/* Unterkante 2 mm über der Platte, ohne zusätzliche GLB-Geometrie. */}
+        {/* Unterkante 2 mm über der Platte; Maschen bleiben transparente Aussparungen. */}
         <mesh position={[0, TABLE.height + 0.002 + TABLE.netHeight / 2, 0]}>
-          <planeGeometry args={[1.83, TABLE.netHeight]} />
+          <planeGeometry args={[TABLE.width, TABLE.netHeight]} />
           <meshStandardMaterial
             ref={(m) => {
               if (r) r.current = { ...r.current, net: m };
             }}
             map={netTexture}
+            color="#080a09"
             transparent
             alphaTest={0.5}
             side={THREE.DoubleSide}
@@ -50,6 +51,18 @@ export const Table = forwardRef<{ far: THREE.MeshStandardMaterial | null; net: T
             depthWrite={false}
           />
         </mesh>
+        {/* Weißes Einfassband an der Oberkante, unabhängig von der Netztextur. */}
+        <mesh position={[0, TABLE.height + 0.002 + TABLE.netHeight - 0.006, 0]}>
+          <boxGeometry args={[TABLE.width, 0.012, 0.006]} />
+          <meshStandardMaterial color="#f8f7f1" roughness={0.8} />
+        </mesh>
+        {/* Schmale senkrechte Pfosten enden unterhalb der Plattenoberfläche. */}
+        {[-1, 1].map((side) => (
+          <mesh key={side} position={[side * (TABLE.width / 2 + 0.011), TABLE.height + (TABLE.netHeight - 0.048) / 2, 0]}>
+            <boxGeometry args={[0.022, TABLE.netHeight + 0.052, 0.026]} />
+            <meshStandardMaterial color="#111513" roughness={0.7} />
+          </mesh>
+        ))}
         {/* Unsichtbare Feedback-Fläche für die Tischhälfte. */}
         <mesh position={[0, top, -TABLE.length / 4]}>
           <boxGeometry args={[TABLE.width, 0.03, TABLE.length / 2]} />
