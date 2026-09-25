@@ -60,7 +60,7 @@ export function Table({ glow }: { glow: Glow }) {
       </mesh>
 
       {/* Beine */}
-      {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) => (
+      {([[-1, -1], [1, -1], [-1, 1], [1, 1]] as const).map(([sx, sz]) => (
         <mesh key={`${sx}${sz}`} position={[sx * (TABLE_W / 2 - 0.1), (TABLE_H - top) / 2, cz + sz * (TABLE_L / 2 - 0.2)]}>
           <boxGeometry args={[0.05, TABLE_H - top, 0.05]} />
           <meshStandardMaterial color="#2b2b2b" />

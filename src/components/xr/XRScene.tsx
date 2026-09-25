@@ -49,7 +49,7 @@ export function XRScene({ onStatus }: { onStatus?: (s: SceneStatus) => void }) {
   const bouncedOwn = useRef(0);
 
   const incoming = classifySpin(new THREE.Vector3(...SERVE_SPIN), new THREE.Vector3(...SERVE_VEL));
-  const [label, setLabel] = useState({ text: incoming.type, color: spinColor(incoming.type) });
+  const [label, setLabel] = useState<{ text: string; color: string }>({ text: incoming.type, color: spinColor(incoming.type) });
   const [glow, setGlow] = useState<Glow>("none");
   const [coachText, setCoachText] = useState("Unterschnitt kommt – öffne den Schläger und schwinge nach vorne-oben.");
   const [metricText, setMetricText] = useState("");

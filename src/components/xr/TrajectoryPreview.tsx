@@ -37,7 +37,7 @@ export function TrajectoryPreview({
     const pr = predict(b, poseRef.current);
     const pos = geom.getAttribute("position") as THREE.BufferAttribute;
     const n = Math.min(pr.points.length, MAX);
-    for (let i = 0; i < n; i++) pos.setXYZ(i, pr.points[i].x, pr.points[i].y, pr.points[i].z);
+    pr.points.slice(0, n).forEach((pt, i) => pos.setXYZ(i, pt.x, pt.y, pt.z));
     pos.needsUpdate = true;
     geom.setDrawRange(0, n);
     line.computeLineDistances();
