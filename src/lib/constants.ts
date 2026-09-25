@@ -30,7 +30,7 @@ type Serve = { pos: readonly [number, number, number]; vel: readonly [number, nu
 export const SERVES: Record<ServeType, Serve> = {
   backspin: { pos: [0.25, TABLE.height + 0.3, -1.5], vel: [0.0, 1.5, 5.0], spin: [-150, 0, 0] },
   topspin: { pos: [0.25, TABLE.height + 0.3, -1.5], vel: [0.0, 2.2, 5.2], spin: [130, 0, 0] },
-  sidespin: { pos: [0.1, TABLE.height + 0.3, -1.5], vel: [0.1, 1.7, 5.0], spin: [30, 130, 0] },
+  sidespin: { pos: [0.1, TABLE.height + 0.3, -1.5], vel: [0.1, 2.2, 5.0], spin: [60, 120, 0] },
 };
 export const SERVE = SERVES.backspin;
 
