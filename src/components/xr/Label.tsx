@@ -36,8 +36,8 @@ export function Label({
   useEffect(() => () => texture.dispose(), [texture]);
 
   return (
-    <sprite {...props} scale={[height * aspect, height, 1]} visible={!!text && props.visible !== false}>
-      <spriteMaterial map={texture} transparent depthTest={false} />
+    <sprite {...props} renderOrder={props.renderOrder ?? 30} scale={[height * aspect, height, 1]} visible={!!text && props.visible !== false}>
+      <spriteMaterial map={texture} transparent depthTest={false} depthWrite={false} />
     </sprite>
   );
 }
