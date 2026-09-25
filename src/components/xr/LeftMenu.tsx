@@ -12,7 +12,8 @@ const ACTIVE_EDGE = "#c4b5fd";
 const TEXT = "#f8fafc";
 const MUTED = "#aeb8cc";
 const GOLD = "#e6d36a";
-const PANEL_ROTATION: [number, number, number] = [0, -0.32, 0];
+// Frontal sichtbar bei 90° Linksdrehung des Spielers (Blick Richtung -X)
+const PANEL_ROTATION: [number, number, number] = [0, Math.PI / 2, 0];
 
 function MenuButton({
   label,
@@ -46,7 +47,7 @@ function MenuButton({
           <meshBasicMaterial color={ACTIVE_EDGE} transparent opacity={0.24} />
         </mesh>
       )}
-      <Label text={label} position={[0, 0, 0.018]} height={height * 0.55} bg="rgba(0,0,0,0)" color={TEXT} />
+      <Label text={label} position={[0, 0, 0.018]} height={height * 0.55} flat bg="rgba(0,0,0,0)" color={TEXT} />
     </group>
   );
 }
@@ -67,8 +68,8 @@ function Panel({ title, subtitle, position, size, children }: { title: string; s
         <boxGeometry args={[w - 0.035, 0.012, 0.01]} />
         <meshBasicMaterial color={ACTIVE} />
       </mesh>
-      <Label text={title} position={[0, h / 2 - 0.078, 0.012]} height={0.043} color={GOLD} bg="rgba(0,0,0,0)" />
-      <Label text={subtitle} position={[0, h / 2 - 0.128, 0.012]} height={0.023} color={MUTED} bg="rgba(0,0,0,0)" />
+      <Label text={title} position={[0, h / 2 - 0.078, 0.012]} height={0.043} flat color={GOLD} bg="rgba(0,0,0,0)" />
+      <Label text={subtitle} position={[0, h / 2 - 0.128, 0.012]} height={0.023} flat color={MUTED} bg="rgba(0,0,0,0)" />
       {children}
     </group>
   );
@@ -97,7 +98,7 @@ export function Menus() {
 
   return (
     <>
-      <Panel title="Schnitt-Variante" subtitle="1 / 2 / 3" position={[-1.45, 1.14, 0.98]} size={[0.54, 0.43]}>
+      <Panel title="Schnitt-Variante" subtitle="1 / 2 / 3" position={[-1.15, 1.2, 2.3]} size={[0.54, 0.43]}>
         {SERVES.map((k, i) => (
           <MenuButton
             key={k}
@@ -111,7 +112,7 @@ export function Menus() {
         ))}
       </Panel>
 
-      <Panel title="Target" subtitle="J / K / L" position={[-1.45, 0.66, 0.98]} size={[0.74, 0.3]}>
+      <Panel title="Target" subtitle="J / K / L" position={[-1.15, 1.2, 1.55]} size={[0.74, 0.3]}>
         {SPOTS.map((sp, i) => (
           <MenuButton
             key={sp.key}

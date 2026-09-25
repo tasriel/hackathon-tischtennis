@@ -67,7 +67,8 @@ export function makeSnapshot(): ContactSnapshot {
 }
 
 const SPIN_COLORS = { BACKSPIN: "#70a5ff", TOPSPIN: "#f3a14a", "OHNE SPIN": "#9aa3ad" } as const;
-const USER = "#f8fafc";
+const USER = "#0a0a0a";
+const USER_TEXT = "#f8fafc";
 const IDEAL = "#2ee66b";
 const OK = "#9ff0b4";
 const NEAR = "#e6d36a";
@@ -157,20 +158,40 @@ const idealDir = (dirDeg: number, out: THREE.Vector3) => {
   return out.set(0, Math.sin(d), -Math.cos(d));
 };
 
-/** Ein konkreter Verbesserungssatz aus Abweichung zum Ideal. */
-function advice(s: ContactSnapshot): string {
+/** Kurze, konkrete Korrekturen aus der Abweichung zum Ideal. */
+function advice(s: ContactSnapshot): string[] {
   const i = s.ideal;
   const parts: string[] = [];
   const dOpen = i.openDeg - s.openDeg;
   if (Math.abs(dOpen) > 8) parts.push(`Blatt ${Math.abs(Math.round(dOpen))}° ${dOpen > 0 ? "öffnen" : "schließen"}`);
   const dv = i.speed - s.speed;
-  if (Math.abs(dv) > 0.5) parts.push(dv > 0 ? "schneller" : "langsamer");
+  if (Math.abs(dv) > 0.5) parts.push(`${fmt(Math.abs(dv))} m/s ${dv > 0 ? "schneller" : "langsamer"}`);
   const dDir = i.dirDeg - s.dirDeg;
-  if (Math.abs(dDir) > 12) parts.push(dDir > 0 ? "mehr nach oben" : "mehr nach vorn");
-  return parts.length ? parts.join(" · ") : "Fast perfekt – genau so wiederholen!";
+  if (Math.abs(dDir) > 12) parts.push(`${Math.abs(Math.round(dDir))}° ${dDir > 0 ? "steiler nach oben" : "flacher nach vorn"}`);
+  return parts.length ? parts : ["Genau so wiederholen!"];
 }
 
-type Texts = { title: string; angle: string; angleC: string; speed: string; speedC: string; dir: string; dirC: string; advice: string; state: string };
+const RANK = { [OK]: 0, [NEAR]: 1, [FAR]: 2 } as Record<string, number>;
+/** Gesamturteil = schlechteste Einzelnote → Feedback nie positiver als die Abweichung. */
+function verdict(cs: string[]): { text: string; color: string } {
+  const worst = Math.max(...cs.map((c) => RANK[c] ?? 0));
+  if (worst === 2) return { text: "Deutlich daneben", color: FAR };
+  if (worst === 1) return { text: "Fast – noch anpassen", color: NEAR };
+  return { text: "Sehr gut!", color: OK };
+}
+
+/** Text auf max. zwei kurze Zeilen verteilen. */
+function twoLines(parts: string[], max = 30): [string, string] {
+  const words = parts.length > 1 ? parts.map((p, i) => (i < parts.length - 1 ? p + " ·" : p)) : parts[0]!.split(" ");
+  const joiner = " ";
+  let a = "";
+  let i = 0;
+  while (i < words.length && (a + joiner + words[i]).trim().length <= max) a = (a + joiner + words[i++]).trim();
+  if (!a) a = words[i++]!;
+  return [a, words.slice(i).join(joiner)];
+}
+
+type Texts = { title: string; state: string; rows: { k: string; du: string; ideal: string; c: string }[]; verdict: string; verdictC: string; tip1: string; tip2: string };
 
 /** Frame der Aufzeichnung zur Zeit t interpolieren. */
 function sampleClip(clip: ClipFrame[], t: number, pos: THREE.Vector3, quat: THREE.Quaternion, ball: THREE.Vector3) {
@@ -194,11 +215,15 @@ export function SpinOverlay({
   ball,
   racket,
   snap,
+  ballObj,
+  racketObj,
 }: {
   ball: BallState;
   racket: RacketState;
   snap: React.MutableRefObject<ContactSnapshot>;
   getScale?: () => number;
+  ballObj?: React.RefObject<THREE.Object3D | null>;
+  racketObj?: React.RefObject<THREE.Object3D | null>;
 }) {
   const { gl, scene, camera } = useThree();
   const isXR = useXR((s) => s.session != null);
@@ -235,7 +260,7 @@ export function SpinOverlay({
     const userTrail = makeTrail(USER);
     const idealTrail = makeTrail(IDEAL);
     const tableLine = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.01, 3), new THREE.MeshBasicMaterial({ color: "#1b3a68" }));
-    const sidePanel = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.5), new THREE.MeshBasicMaterial({ color: PANEL_INSET, transparent: true, opacity: 0.92, depthTest: false }));
+    const sidePanel = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.54), new THREE.MeshBasicMaterial({ color: PANEL_INSET, transparent: true, opacity: 0.92, depthTest: false }));
     sidePanel.rotation.y = -Math.PI / 2;
     sidePanel.renderOrder = 7;
     const divider = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.5, 0.004), new THREE.MeshBasicMaterial({ color: VIOLET_SOFT, transparent: true, opacity: 0.55, depthTest: false }));
@@ -257,7 +282,7 @@ export function SpinOverlay({
 
   const panel = useRef<THREE.Mesh>(null);
   const frame = useRef<THREE.Mesh>(null);
-  const [texts, setTexts] = useState<Texts>({ title: "", angle: "", angleC: USER, speed: "", speedC: USER, dir: "", dirC: USER, advice: "", state: "" });
+  const [texts, setTexts] = useState<Texts>({ title: "", state: "", rows: [], verdict: "", verdictC: OK, tip1: "", tip2: "" });
   const tick = useRef(0);
   const camTarget = useMemo(() => new THREE.Vector3(), []);
   const _v = useMemo(() => new THREE.Vector3(), []);
@@ -291,12 +316,9 @@ export function SpinOverlay({
 
     // Kamera: live am Schläger, in der Wiederholung fest am Treffpunkt
     const focus = replay ? s.racketPos : racket.pos;
-    camTarget.lerp(_v.set(focus.x, focus.y, focus.z - 0.06), 0.25);
+    camTarget.lerp(_v.set(focus.x, focus.y, focus.z - 0.2), 0.25);
     cam.position.set(camTarget.x - 0.98, camTarget.y + 0.04, camTarget.z);
     cam.lookAt(camTarget);
-    // In der Wiederholung nur die Overlay-Elemente zeigen (keine Live-Szene)
-    if (replay) cam.layers.disable(0);
-    else cam.layers.enable(0);
 
     let tClip = 0;
     let paused = false;
@@ -319,9 +341,9 @@ export function SpinOverlay({
       helpers.idealRacket.quaternion.setFromUnitVectors(X, idealNormal(ideal.openDeg, _v));
       helpers.tableLine.position.set(s.racketPos.x, TABLE.height - 0.005, 0);
     }
-    helpers.userRacket.visible = replay;
+    helpers.userRacket.visible = false;
     helpers.idealRacket.visible = replay;
-    helpers.ghostBall.visible = replay;
+    helpers.ghostBall.visible = false;
     helpers.userTrail.visible = replay;
     helpers.idealTrail.visible = replay;
     helpers.tableLine.visible = replay;
@@ -356,21 +378,21 @@ export function SpinOverlay({
     const bar = helpers.bar;
     bar.visible = helpers.marker.visible = replay;
     if (replay) {
-      const full = 0.62;
+      const full = 0.4;
       const f = (tClip + CLIP_BEFORE) / (CLIP_BEFORE + CLIP_AFTER);
-      const y = camTarget.y - 0.245;
-      const zStart = camTarget.z - 0.18 + full / 2;
+      const y = camTarget.y - 0.24;
+      const zStart = camTarget.z + 0.03;
       bar.scale.set(Math.max(full * f, 0.001), 0.006, 1);
-      bar.position.set(camTarget.x, y, zStart - (full * f) / 2);
+      bar.position.set(camTarget.x, y, zStart + (full * f) / 2);
       helpers.marker.scale.set(0.004, 0.018, 1);
-      helpers.marker.position.set(camTarget.x, y, zStart - full * (CLIP_BEFORE / (CLIP_BEFORE + CLIP_AFTER)));
-      (bar.material as THREE.MeshBasicMaterial).color.set(paused ? USER : VIOLET_SOFT);
+      helpers.marker.position.set(camTarget.x, y, zStart + full * (CLIP_BEFORE / (CLIP_BEFORE + CLIP_AFTER)));
+      (bar.material as THREE.MeshBasicMaterial).color.set(paused ? "#ffffff" : VIOLET_SOFT);
     }
 
     // Texte (gedrosselt)
-    if (labelsRef.current) labelsRef.current.position.copy(_v.set(camTarget.x, camTarget.y + 0.02, camTarget.z - 0.38));
-    helpers.sidePanel.position.copy(_v.set(camTarget.x + 0.002, camTarget.y, camTarget.z - 0.38));
-    helpers.divider.position.copy(_v.set(camTarget.x, camTarget.y, camTarget.z - 0.135));
+    if (labelsRef.current) labelsRef.current.position.copy(_v.set(camTarget.x, camTarget.y, camTarget.z));
+    helpers.sidePanel.position.copy(_v.set(camTarget.x + 0.002, camTarget.y, camTarget.z - 0.235));
+    helpers.divider.position.copy(_v.set(camTarget.x, camTarget.y, camTarget.z - 0.005));
     if (++tick.current % 6 === 0) {
       let open: number;
       if (replay) open = s.openDeg;
@@ -382,24 +404,41 @@ export function SpinOverlay({
       const dir = replay ? s.dirDeg : THREE.MathUtils.radToDeg(Math.atan2(vel.y, Math.max(-vel.z, 1e-3)));
       const spec = STROKES[settings.serve];
       const deg = (d: number) => `${Math.abs(Math.round(d))}° ${d >= 0 ? "offen" : "geschl."}`;
+      const sg = (d: number) => `${d >= 0 ? "+" : ""}${Math.round(d)}°`;
+      const angleC = grade(Math.abs(open - ideal.openDeg), 8, 18);
+      const speedC = grade(Math.abs(v - ideal.speed), 0.5, 1.2);
+      const dirC = v < 0.3 ? FAR : grade(Math.abs(dir - ideal.dirDeg), 12, 25);
+      const outSpin = replay ? spinType({ pos: s.point, vel: _v.set(0, 0, -1), spin: s.spinAfter }) : "";
+      const SP = { BACKSPIN: "Unterschn.", TOPSPIN: "Obersch.", "OHNE SPIN": "ohne" } as Record<string, string>;
+      const rows = [
+        { k: "Winkel", du: deg(open), ideal: deg(ideal.openDeg), c: angleC },
+        { k: "Tempo", du: `${fmt(v)} m/s`, ideal: `${fmt(ideal.speed)} m/s`, c: speedC },
+        { k: "Richtung", du: sg(dir), ideal: sg(ideal.dirDeg), c: dirC },
+      ];
+      if (replay) rows.push({ k: "Spin", du: SP[outSpin] ?? "–", ideal: SP[spec.wantSpin]!, c: outSpin === spec.wantSpin ? OK : FAR });
+      const vd = replay ? verdict(rows.map((r) => r.c)) : { text: "", color: OK };
+      const [tip1, tip2] = replay ? twoLines(advice(s)) : twoLines([spec.tip], 34);
       const next: Texts = {
-        title: replay
-          ? paused
-            ? "Balltreffpunkt"
-            : `Wiederholung: ${spec.stroke}`
-          : `${spec.serveLabel} → ${spec.stroke}`,
-        angle: `Winkel  du ${deg(open)}  ·  ideal ${deg(ideal.openDeg)}`,
-        angleC: grade(Math.abs(open - ideal.openDeg), 8, 18),
-        speed: `Tempo  du ${fmt(v)}  ·  ideal ${fmt(ideal.speed)} m/s`,
-        speedC: grade(Math.abs(v - ideal.speed), 0.5, 1.2),
-        dir: `Richtung  du ${dir >= 0 ? "+" : ""}${Math.round(dir)}°  ·  ideal ${ideal.dirDeg >= 0 ? "+" : ""}${ideal.dirDeg}°`,
-        dirC: v < 0.3 ? "#cfd8e3" : grade(Math.abs(dir - ideal.dirDeg), 12, 25),
-        advice: replay ? advice(s) : spec.tip,
-        state: replay ? (paused ? "Treffpunkt hält 1 s" : "Bewegung läuft in Schleife") : "Live-Vorschau",
+        title: replay ? (paused ? "Balltreffpunkt" : `Replay: ${spec.stroke}`) : `${spec.serveLabel} → ${spec.stroke}`,
+        state: replay ? (paused ? "Treffpunkt hält 1 s" : "Schleife bis zum nächsten Ball") : "Live",
+        rows,
+        verdict: vd.text,
+        verdictC: vd.color,
+        tip1,
+        tip2,
       };
       if (JSON.stringify(next) !== JSON.stringify(texts)) setTexts(next);
     }
 
+    // Replay: echte Ball-/Schläger-Modelle kurz an die aufgezeichnete Stelle setzen
+    const bo = ballObj?.current;
+    const ro = racketObj?.current;
+    const saved = replay && bo && ro ? { bp: bo.position.clone(), rp: ro.position.clone(), rq: ro.quaternion.clone() } : null;
+    if (saved && bo && ro) {
+      bo.position.copy(_b);
+      ro.position.copy(_p);
+      ro.quaternion.copy(_q);
+    }
     // Nahaufnahme rendern
     const xrOn = gl.xr.enabled;
     gl.xr.enabled = false;
@@ -410,6 +449,11 @@ export function SpinOverlay({
     gl.render(scene, cam);
     gl.setRenderTarget(prev);
     gl.xr.enabled = xrOn;
+    if (saved && bo && ro) {
+      bo.position.copy(saved.bp);
+      ro.position.copy(saved.rp);
+      ro.quaternion.copy(saved.rq);
+    }
 
     // Tafel platzieren
     const p = panel.current;
@@ -446,14 +490,20 @@ export function SpinOverlay({
     <>
       <primitive object={helpers.root} />
       <group ref={labelsRef}>
-        <Label text={texts.title} position={[0, 0.19, 0]} height={0.03} color={VIOLET_SOFT} bg="rgba(0,0,0,0)" />
-        <Label text={texts.state} position={[0, 0.145, 0]} height={0.018} color={TEXT_MUTED} bg="rgba(0,0,0,0)" />
-        <Label text={"DU"} position={[0, 0.085, 0.13]} height={0.02} color={USER} bg="rgba(0,0,0,0)" />
-        <Label text={"PERFEKT"} position={[0, 0.085, -0.07]} height={0.02} color={IDEAL} bg="rgba(0,0,0,0)" />
-        <Label text={texts.angle} position={[0, 0.025, 0]} height={0.024} color={texts.angleC} bg="rgba(0,0,0,0)" />
-        <Label text={texts.speed} position={[0, -0.035, 0]} height={0.024} color={texts.speedC} bg="rgba(0,0,0,0)" />
-        <Label text={texts.dir} position={[0, -0.095, 0]} height={0.024} color={texts.dirC} bg="rgba(0,0,0,0)" />
-        <Label text={texts.advice} position={[0, -0.18, 0]} height={0.026} color="#e6d36a" bg="rgba(0,0,0,0)" />
+        <Label text={texts.title} anchor="left" position={[0, 0.215, -0.44]} height={0.034} color={VIOLET_SOFT} bg="rgba(0,0,0,0)" />
+        <Label text={texts.state} anchor="left" position={[0, 0.178, -0.44]} height={0.022} color={TEXT_MUTED} bg="rgba(0,0,0,0)" />
+        <Label text="DU" anchor="left" position={[0, 0.135, -0.3]} height={0.026} color={USER_TEXT} bg="rgba(0,0,0,0)" />
+        <Label text="PERFEKT" anchor="left" position={[0, 0.135, -0.15]} height={0.026} color={IDEAL} bg="rgba(0,0,0,0)" />
+        {texts.rows.map((r, i) => (
+          <group key={r.k} position={[0, 0.09 - i * 0.042, 0]}>
+            <Label text={r.k} anchor="left" position={[0, 0, -0.44]} height={0.03} color={TEXT_MUTED} bg="rgba(0,0,0,0)" />
+            <Label text={r.du} anchor="left" position={[0, 0, -0.3]} height={0.03} color={r.c} bg="rgba(0,0,0,0)" />
+            <Label text={r.ideal} anchor="left" position={[0, 0, -0.15]} height={0.03} color={IDEAL} bg="rgba(0,0,0,0)" />
+          </group>
+        ))}
+        <Label text={texts.verdict} anchor="left" position={[0, -0.1, -0.44]} height={0.034} color={texts.verdictC} bg="rgba(0,0,0,0)" />
+        <Label text={texts.tip1} anchor="left" position={[0, -0.15, -0.44]} height={0.028} color="#e6d36a" bg="rgba(0,0,0,0)" />
+        <Label text={texts.tip2} anchor="left" position={[0, -0.188, -0.44]} height={0.028} color="#e6d36a" bg="rgba(0,0,0,0)" />
       </group>
       <mesh ref={frame} renderOrder={19} onUpdate={(m) => m.layers.set(PANEL_LAYER)}>
         <planeGeometry args={[1, 1]} />
