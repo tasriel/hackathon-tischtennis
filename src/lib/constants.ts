@@ -11,7 +11,7 @@ export const GRAVITY = -9.81;
 export const DRAG = 0.12; // Luftwiderstand (a = -DRAG * |v| * v)
 export const MAGNUS = 0.004; // a = MAGNUS * (spin × v)
 export const TABLE_RESTITUTION = 0.88;
-export const TABLE_FRICTION = 0.35;
+export const TABLE_FRICTION = 0.18; // Coulomb-Reibwert Ball–Tisch
 
 // Schläger (glatter Belag)
 export const RACKET_RADIUS = 0.085; // Trefferzone der Blattfläche
