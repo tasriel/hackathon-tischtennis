@@ -22,8 +22,8 @@ export function MeshyModel({
   opacity = 1,
 }: {
   name: MeshyModelName;
-  tint?: THREE.ColorRepresentation;
-  opacity?: number;
+  tint?: THREE.ColorRepresentation | undefined;
+  opacity?: number | undefined;
 }) {
   const { scene } = useGLTF(MODEL_URLS[name]);
   const model = useMemo(() => {

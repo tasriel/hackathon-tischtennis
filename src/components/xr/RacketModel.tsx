@@ -8,7 +8,7 @@ import { MeshyModel } from "./MeshyModel";
  * - Griff zeigt in lokale +Z-Richtung (zur Hand).
  * Ein Meshy-GLB muss nur so ausgerichtet werden. Physik nutzt RACKET_RADIUS.
  */
-export function RacketModel({ tint, opacity }: { tint?: string; opacity?: number } = {}) {
+export function RacketModel({ tint, opacity }: { tint?: string | undefined; opacity?: number | undefined } = {}) {
   return (
     <Suspense fallback={<DemoRacket tint={tint} opacity={opacity} />}>
       {/* Meshy: Roh-Z = Blattnormale, Roh-Y = Längsachse. */}
@@ -19,7 +19,7 @@ export function RacketModel({ tint, opacity }: { tint?: string; opacity?: number
   );
 }
 
-function DemoRacket({ tint, opacity = 1 }: { tint?: string; opacity?: number }) {
+function DemoRacket({ tint, opacity = 1 }: { tint?: string | undefined; opacity?: number | undefined }) {
   return (
     <group>
       <mesh rotation={[0, 0, Math.PI / 2]}>
