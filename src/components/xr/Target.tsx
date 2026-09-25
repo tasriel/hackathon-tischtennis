@@ -91,10 +91,11 @@ export function Target({ ball, enabled }: { ball: BallState; enabled: () => bool
 
     const pulse = hit ? 1.1 : 1 + Math.sin(effect.current * Math.PI) * 0.28;
     if (root.current) root.current.position.set(x.current, TABLE.height + TARGET_THICKNESS / 2 + 0.002, TARGET_Z);
-    if (model.current) model.current.scale.setScalar(pulse);
-    if (glow.current) {
-      glow.visible = effect.current > 0.02;
-      glow.scale.setScalar(1 + effect.current * 1.6);
+    if (model.current?.scale) model.current.scale.set(pulse, pulse, pulse);
+    if (glow.current?.scale) {
+      glow.current.visible = effect.current > 0.02;
+      const glowScale = 1 + effect.current * 1.6;
+      glow.current.scale.set(glowScale, glowScale, glowScale);
       const mat = glow.current.material as THREE.MeshBasicMaterial;
       mat.opacity = effect.current * 0.75;
     }
