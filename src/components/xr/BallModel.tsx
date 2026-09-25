@@ -1,7 +1,8 @@
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
-import { BALL_RADIUS } from "@/lib/constants";
+import { BALL_RADIUS, TIME_MAX } from "@/lib/constants";
+import { FREEZE_SCALE } from "@/lib/timescale";
 
 const NORMAL_BALL = new THREE.Color("#f7f3ea");
 const SLOWMO_BALL = new THREE.Color("#ef8e39");
@@ -13,8 +14,7 @@ const SPIN_CROSS = "#175b91";
  * Größe = BALL_RADIUS, Mittelpunkt im Ursprung. Physik ist unabhängig davon.
  * Farbige Streifen machen die Rotation sichtbar.
  */
-export function BallModel({ isSlowMotion = () => false }: { isSlowMotion?: () => boolean }) {
-  const blend = useRef(0);
+export function BallModel({ getTimeScale = () => TIME_MAX }: { getTimeScale?: () => number }) {
   const lastBase = useRef("");
   const mixedColor = useMemo(() => new THREE.Color(), []);
   const surface = useMemo(() => {
@@ -28,11 +28,10 @@ export function BallModel({ isSlowMotion = () => false }: { isSlowMotion?: () =>
     return { context, texture: t };
   }, []);
 
-  useFrame((_, delta) => {
+  useFrame(() => {
     if (!surface) return;
-    const target = isSlowMotion() ? 1 : 0;
-    blend.current += (target - blend.current) * (1 - Math.exp(-7 * Math.min(delta, 0.05)));
-    const base = `#${mixedColor.copy(NORMAL_BALL).lerp(SLOWMO_BALL, blend.current).getHexString()}`;
+    const orangeAmount = THREE.MathUtils.clamp((TIME_MAX - getTimeScale()) / (TIME_MAX - FREEZE_SCALE), 0, 1);
+    const base = `#${mixedColor.copy(NORMAL_BALL).lerp(SLOWMO_BALL, orangeAmount).getHexString()}`;
     if (base === lastBase.current) return;
     lastBase.current = base;
     const { context: g, texture } = surface;
