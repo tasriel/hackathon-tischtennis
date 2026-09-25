@@ -23,13 +23,13 @@ export function predictReturn(
     if (!hit) {
       if (collideRacket(b, _prev, racket)) {
         hit = true;
-        out[n++].copy(b.pos);
+        out[n++]!.copy(b.pos);
       }
       if (b.pos.z > 2.4 || e === "floor") return 0;
     } else {
-      if (i % 6 === 0) out[n++].copy(b.pos);
+      if (i % 6 === 0) out[n++]!.copy(b.pos);
       if (e === "net" || e === "floor" || e === "table-far" || e === "table-near") {
-        if (n < maxPoints) out[n++].copy(b.pos);
+        if (n < maxPoints) out[n++]!.copy(b.pos);
         break;
       }
     }

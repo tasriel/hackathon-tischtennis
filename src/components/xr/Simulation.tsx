@@ -22,7 +22,7 @@ import { Label } from "./Label";
 export type HudState = { result: ShotResult | null; hint: string; info: string; timeScale: number };
 
 const PHYS_DT = 1 / 240;
-const RESULT_COLORS: Record<string, string> = { success: "#2e9e4f", fail: "#c0392b" };
+const RESULT_COLORS = { success: "#2e9e4f", fail: "#c0392b" } as const;
 const TABLE_BLUE = new THREE.Color("#1d4f8a");
 const NET_WHITE = new THREE.Color("#eeeeee");
 
@@ -231,7 +231,7 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
         const w = ball.spin.length();
         if (w > 0) {
           _q.setFromAxisAngle(_tmp.copy(ball.spin).divideScalar(w), w * PHYS_DT);
-          ballGroup.current.children[0].quaternion.premultiply(_q);
+          ballGroup.current.children[0]!.quaternion.premultiply(_q);
         }
       }
     }
@@ -258,9 +258,9 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
         previewLine.geometry.setFromPoints(previewPts.slice(0, n));
         previewLine.computeLineDistances();
       }
-      previewLine.userData.n = n;
+      previewLine.userData["n"] = n;
     }
-    previewLine.visible = showPreview && (previewLine.userData.n ?? 0) > 1;
+    previewLine.visible = showPreview && (previewLine.userData["n"] ?? 0) > 1;
 
     // ---------- Feedback ----------
     const target = s.flashTarget;
