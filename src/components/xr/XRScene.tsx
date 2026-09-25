@@ -12,7 +12,7 @@ export function XRScene() {
   return (
     <div className="fixed inset-0 bg-background">
       <Canvas
-        camera={{ position: [0.25, 1.45, PLAYER_Z + 0.5], fov: 60 }}
+        camera={{ position: [-0.1, 1.7, PLAYER_Z + 1.0], fov: 55 }}
         onCreated={({ camera }) => camera.lookAt(0, TABLE.height, 0)}
         dpr={[1, 1.5]}
       >
