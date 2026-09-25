@@ -98,9 +98,8 @@ export function Simulation() {
     () => ({ ...racket, vel: new THREE.Vector3(), angVel: new THREE.Vector3(), handVel: previewHand }),
     [racket, previewHand],
   );
-  const tableMats = useRef<{ far: THREE.MeshStandardMaterial | null; net: THREE.MeshStandardMaterial | null }>({
+  const tableMats = useRef<{ far: THREE.MeshStandardMaterial | null }>({
     far: null,
-    net: null,
   });
   const isXR = useXR((s) => s.session != null);
   const controller = useXRInputSourceState("controller", "right");
@@ -363,9 +362,6 @@ export function Simulation() {
     if (tableMats.current.far) {
       tableMats.current.far.color.copy(TABLE_BLUE).lerp(_c.set(col), target === "success" ? s.flash * 0.7 : 0);
       tableMats.current.far.emissive.set(target === "success" ? col : "#000000").multiplyScalar(s.flash * 0.4);
-    }
-    if (tableMats.current.net) {
-      tableMats.current.net.emissive.set(RESULT_COLORS.fail).multiplyScalar(target === "fail" ? s.flash * 0.6 : 0);
     }
 
     // ---------- Aufzeichnung für die Overlay-Animation ----------

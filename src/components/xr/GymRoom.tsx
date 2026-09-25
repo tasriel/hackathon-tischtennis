@@ -76,6 +76,51 @@ function floorTex() {
   );
 }
 
+function courtLinesTex() {
+  const size = 1024;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const g = canvas.getContext("2d");
+  if (g) {
+    // Der Boden ist 9 × 10 m; die Linien bleiben etwa 60 cm von den Wänden entfernt.
+    const x = (meters: number) => ((meters + 4.5) / 9) * size;
+    const z = (meters: number) => ((meters + 5) / 10) * size;
+    const left = x(-3.8);
+    const right = x(3.8);
+    const far = z(-2.55);
+    const near = z(4.15);
+    const center = z(0.8);
+    g.strokeStyle = "#d7332d";
+    g.lineWidth = 5;
+    g.lineCap = "round";
+    g.lineJoin = "round";
+    g.strokeRect(left, far, right - left, near - far);
+    g.beginPath();
+    g.moveTo(left, center);
+    g.lineTo(right, center);
+    g.stroke();
+    g.beginPath();
+    g.arc(x(0), center, 82, 0, Math.PI * 2);
+    g.stroke();
+    // Symmetrische Freiwurfzonen und Bögen wie auf einem Hallen-Basketballfeld.
+    for (const end of [far, near]) {
+      const direction = end === far ? 1 : -1;
+      const key = end + direction * 175;
+      g.strokeRect(x(-1.05), Math.min(end, key), x(1.05) - x(-1.05), Math.abs(key - end));
+      g.beginPath();
+      g.arc(x(0), key, 58, direction === 1 ? 0 : Math.PI, direction === 1 ? Math.PI : 2 * Math.PI);
+      g.stroke();
+      g.beginPath();
+      g.arc(x(0), end, 225, direction === 1 ? 0 : Math.PI, direction === 1 ? Math.PI : 2 * Math.PI);
+      g.stroke();
+    }
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 function Wall({ position, rotation = [0, 0, 0], len }: { position: [number, number, number]; rotation?: [number, number, number]; len: number }) {
   const tex = useMemo(() => ({ b: brick(len), c: cloth(len) }), [len]);
   return (
@@ -98,11 +143,16 @@ function Wall({ position, rotation = [0, 0, 0], len }: { position: [number, numb
 
 export function GymRoom() {
   const floor = useMemo(() => floorTex(), []);
+  const lines = useMemo(() => courtLinesTex(), []);
   return (
     <group>
       <mesh rotation-x={-Math.PI / 2} position={[0, -0.004, 0]}>
         <planeGeometry args={[9, 10]} />
         <meshStandardMaterial map={floor} roughness={0.7} metalness={0.05} />
+      </mesh>
+      <mesh rotation-x={-Math.PI / 2} position={[0, -0.002, 0]}>
+        <planeGeometry args={[9, 10]} />
+        <meshBasicMaterial map={lines} transparent alphaTest={0.1} depthWrite={false} polygonOffset polygonOffsetFactor={-1} />
       </mesh>
       <Wall position={[0, 0, -3.2]} len={8.8} />
       <Wall position={[-4.4, 0, 0.8]} rotation={[0, Math.PI / 2, 0]} len={8.0} />

@@ -7,11 +7,10 @@ import { TABLE } from "@/lib/constants";
 import { SceneModel } from "./SceneModel";
 
 /** Maßstäblicher Tisch und leichtes Textur-Netz; Physik bleibt an TABLE gebunden. */
-export const Table = forwardRef<{ far: THREE.MeshStandardMaterial | null; net: THREE.MeshStandardMaterial | null }>(
+export const Table = forwardRef<{ far: THREE.MeshStandardMaterial | null }>(
   function Table(_, ref) {
     const r = ref as React.MutableRefObject<{
       far: THREE.MeshStandardMaterial | null;
-      net: THREE.MeshStandardMaterial | null;
     }>;
     const top = TABLE.height - 0.015;
     const source = useTexture(netTextureAsset.url);
@@ -39,9 +38,6 @@ export const Table = forwardRef<{ far: THREE.MeshStandardMaterial | null; net: T
         <mesh position={[0, TABLE.height + 0.002 + TABLE.netHeight / 2, 0]}>
           <planeGeometry args={[TABLE.width, TABLE.netHeight]} />
           <meshStandardMaterial
-            ref={(m) => {
-              if (r) r.current = { ...r.current, net: m };
-            }}
             map={netTexture}
             color="#080a09"
             transparent
