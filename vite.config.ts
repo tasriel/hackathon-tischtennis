@@ -13,6 +13,7 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
-    resolve: { dedupe: ["three"] },
+    // Alle WebGL-Pakete müssen dieselbe React-/Fiber-Instanz verwenden.
+    resolve: { dedupe: ["react", "react-dom", "three", "@react-three/fiber"] },
   },
 });

@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import { RACKET_RADIUS } from "@/lib/constants";
+import { MeshyModel } from "./MeshyModel";
 
 /**
  * Austauschbare Schläger-Hülle (Demo). Konvention:
@@ -6,22 +8,27 @@ import { RACKET_RADIUS } from "@/lib/constants";
  * - Griff zeigt in lokale +Z-Richtung (zur Hand).
  * Ein Meshy-GLB muss nur so ausgerichtet werden. Physik nutzt RACKET_RADIUS.
  */
-export function RacketModel() {
+export function RacketModel({ tint, opacity }: { tint?: string; opacity?: number } = {}) {
+  return (
+    <Suspense fallback={<DemoRacket tint={tint} opacity={opacity} />}>
+      {/* Meshy: Roh-Z = Blattnormale, Roh-Y = Längsachse. */}
+      <group rotation={[Math.PI / 2, 0, Math.PI / 2]} position={[0, 0, 0.04]} scale={0.145}>
+        <MeshyModel name="paddle" tint={tint} opacity={opacity} />
+      </group>
+    </Suspense>
+  );
+}
+
+function DemoRacket({ tint, opacity = 1 }: { tint?: string; opacity?: number }) {
   return (
     <group>
-      {/* Blatt: rote und schwarze Seite */}
-      <mesh rotation={[0, 0, Math.PI / 2]} position={[0.003, 0, 0]}>
-        <cylinderGeometry args={[RACKET_RADIUS, RACKET_RADIUS, 0.004, 32]} />
-        <meshStandardMaterial color="#c62828" roughness={0.8} />
+      <mesh rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[RACKET_RADIUS, RACKET_RADIUS, 0.008, 32]} />
+        <meshStandardMaterial color={tint ?? "#c62828"} transparent={opacity < 1} opacity={opacity} />
       </mesh>
-      <mesh rotation={[0, 0, Math.PI / 2]} position={[-0.003, 0, 0]}>
-        <cylinderGeometry args={[RACKET_RADIUS, RACKET_RADIUS, 0.004, 32]} />
-        <meshStandardMaterial color="#1a1a1a" roughness={0.8} />
-      </mesh>
-      {/* Griff */}
       <mesh position={[0, 0, RACKET_RADIUS + 0.045]} rotation={[Math.PI / 2, 0, 0]}>
         <boxGeometry args={[0.025, 0.1, 0.03]} />
-        <meshStandardMaterial color="#b8864b" roughness={0.7} />
+        <meshStandardMaterial color={tint ?? "#b8864b"} transparent={opacity < 1} opacity={opacity} />
       </mesh>
     </group>
   );
