@@ -1,10 +1,11 @@
 import { forwardRef } from "react";
 import * as THREE from "three";
-import tableAsset from "@/assets/table.glb.asset.json";
+import tableAsset from "@/assets/table-quality.glb.asset.json";
+import netAsset from "@/assets/net-quality.glb.asset.json";
 import { TABLE } from "@/lib/constants";
 import { SceneModel } from "./SceneModel";
 
-/** Tisch, Netz, Boden. Die Tischplatten-Materialien werden fürs Feedback eingefärbt. */
+/** Maßstäbliche Tisch- und Netzmodelle; Physik bleibt an TABLE gebunden. */
 export const Table = forwardRef<{ far: THREE.MeshStandardMaterial | null; net: THREE.MeshStandardMaterial | null }>(
   function Table(_, ref) {
     const r = ref as React.MutableRefObject<{
@@ -14,12 +15,18 @@ export const Table = forwardRef<{ far: THREE.MeshStandardMaterial | null; net: T
     const top = TABLE.height - 0.015;
     return (
       <group>
-        {/* Das Modell ersetzt Platte, Netz und Beine. Seine lange Achse wird auf Z gedreht. */}
+        {/* Lange Modellachse auf Z; Modelloberkante auf physikalischer Plattenhöhe. */}
         <SceneModel
           url={tableAsset.url}
-          position={[0, 0.375, 0]}
+          position={[0, TABLE.height - 0.262611 * (TABLE.length / 1.89957), 0]}
           rotation={[0, Math.PI / 2, 0]}
           scale={TABLE.length / 1.89957}
+        />
+        {/* Netzunterkante nur 2 mm über der Platte; Pfosten greifen seitlich darunter. */}
+        <SceneModel
+          url={netAsset.url}
+          position={[0, TABLE.height + 0.002 + 0.03596 * (TABLE.width / 1.903177), 0]}
+          scale={TABLE.width / 1.903177}
         />
         {/* Unsichtbare Feedback-Flächen behalten die bestehende Trefferanzeige bei. */}
         <mesh position={[0, top, -TABLE.length / 4]}>

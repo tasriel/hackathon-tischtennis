@@ -1,7 +1,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
-import targetAsset from "@/assets/target.glb.asset.json";
+import targetAsset from "@/assets/target-quality.glb.asset.json";
 import { BALL_RADIUS, RACKET_RADIUS, TABLE } from "@/lib/constants";
 import type { BallState } from "@/lib/physics";
 import { settings, TARGET_X } from "@/lib/settings";
