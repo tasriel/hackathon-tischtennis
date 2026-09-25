@@ -28,11 +28,11 @@ export const Table = forwardRef<{ far: THREE.MeshStandardMaterial | null; net: T
           {/* Unsichtbare Feedback-Flächen behalten die Lernsignale unabhängig vom Modell. */}
           <mesh position={[0, top + 0.002, -TABLE.length / 4]}>
             <boxGeometry args={[TABLE.width, 0.004, TABLE.length / 2]} />
-            <meshStandardMaterial ref={(m) => { if (r) r.current = { ...r.current, far: m }; }} color="#1d4f8a" transparent opacity={0} />
+            <meshStandardMaterial ref={(m) => { if (r) r.current = { ...r.current, far: m }; }} color="#1d4f8a" transparent opacity={0.08} />
           </mesh>
           <mesh position={[0, TABLE.height + TABLE.netHeight / 2, 0]}>
             <boxGeometry args={[TABLE.width + 0.3, TABLE.netHeight, 0.012]} />
-            <meshStandardMaterial ref={(m) => { if (r) r.current = { ...r.current, net: m }; }} color="#eeeeee" transparent opacity={0} />
+            <meshStandardMaterial ref={(m) => { if (r) r.current = { ...r.current, net: m }; }} color="#eeeeee" transparent opacity={0.08} />
           </mesh>
         </Suspense>
       </group>

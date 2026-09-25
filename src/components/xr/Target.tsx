@@ -16,6 +16,7 @@ export function Target({ ball, enabled }: { ball: BallState; enabled: () => bool
   const hitCooldown = useRef(0);
   const tilt = useRef(0);
   const tiltVelocity = useRef(0);
+  const previousBall = useRef(ball.pos.clone());
   const left = useXRInputSourceState("controller", "left");
   const center = useMemo(() => new THREE.Vector3(), []);
 
@@ -48,8 +49,13 @@ export function Target({ ball, enabled }: { ball: BallState; enabled: () => bool
     center.set(offset.current.x, TABLE.height + TARGET_RADIUS, offset.current.y);
     hitCooldown.current = Math.max(0, hitCooldown.current - dt);
     if (enabled() && hitCooldown.current === 0 && ball.vel.z < 0) {
-      const crossedFace = Math.abs(ball.pos.z - center.z) < BALL_RADIUS + 0.035;
-      const radial = Math.hypot(ball.pos.x - center.x, ball.pos.y - center.y);
+      const before = previousBall.current;
+      const crossedFace = before.z >= center.z && ball.pos.z <= center.z;
+      const travelZ = before.z - ball.pos.z;
+      const alpha = travelZ > 1e-5 ? THREE.MathUtils.clamp((before.z - center.z) / travelZ, 0, 1) : 1;
+      const hitX = THREE.MathUtils.lerp(before.x, ball.pos.x, alpha);
+      const hitY = THREE.MathUtils.lerp(before.y, ball.pos.y, alpha);
+      const radial = Math.hypot(hitX - center.x, hitY - center.y);
       if (crossedFace && radial < TARGET_RADIUS + BALL_RADIUS) {
         hitCooldown.current = 0.5;
         tiltVelocity.current = Math.min(8, Math.max(3, -ball.vel.z * 1.4));
@@ -57,6 +63,7 @@ export function Target({ ball, enabled }: { ball: BallState; enabled: () => bool
         ball.vel.multiplyScalar(0.82);
       }
     }
+    previousBall.current.copy(ball.pos);
 
     tiltVelocity.current += (-tilt.current * 18 - tiltVelocity.current * 5) * dt;
     tilt.current += tiltVelocity.current * dt;

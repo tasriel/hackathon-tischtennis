@@ -2,7 +2,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useXR } from "@react-three/xr";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { BALL_RADIUS, RACKET_RADIUS } from "@/lib/constants";
+import { BALL_RADIUS } from "@/lib/constants";
 import { racketPointVel, spinType, type BallState, type RacketState } from "@/lib/physics";
 import { DEFAULT_IDEAL, type IdealShot } from "@/lib/idealShot";
 import { Label } from "./Label";
