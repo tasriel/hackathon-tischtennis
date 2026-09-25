@@ -32,7 +32,7 @@ export const SUBSTEP = 1 / 240;
 
 // --- Aufschlag: mittlerer Unterschnitt ---
 export const SERVE_POS: [number, number, number] = [0.05, 0.98, TABLE_FAR_Z + 0.1];
-export const SERVE_VEL: [number, number, number] = [0, 0.9, 4.6];
+export const SERVE_VEL: [number, number, number] = [0, 1.6, 5.0];
 export const SERVE_SPIN: [number, number, number] = [-90, 0, 0]; // -x = Unterschnitt bei Flug Richtung +z
 
 // --- Zeitlupe ---
