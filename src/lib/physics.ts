@@ -7,7 +7,8 @@ import {
   RACKET_GRIP,
   RACKET_RADIUS,
   RACKET_RESTITUTION,
-  SERVE,
+  SERVES,
+  type ServeType,
   TABLE,
   TABLE_FRICTION,
   TABLE_RESTITUTION,
@@ -32,9 +33,9 @@ export type RacketState = {
 };
 
 /** max. Schlägergeschwindigkeit am Kontaktpunkt in Simulationszeit (m/s) */
-const MAX_RACKET_SPEED = 8;
+const MAX_RACKET_SPEED = 6;
 /** Zeitlupen-Umrechnung ist gedeckelt: echte Armbewegung wirkt höchstens 3× stärker. */
-const MAX_SLOWMO_BOOST = 3;
+const MAX_SLOWMO_BOOST = 1.3;
 
 /** Momentaufnahme des letzten Schlägerkontakts (fürs Overlay). */
 export const lastContact = {
@@ -61,10 +62,11 @@ export function makeBall(): BallState {
   return { pos: new THREE.Vector3(), vel: new THREE.Vector3(), spin: new THREE.Vector3() };
 }
 
-export function resetServe(b: BallState) {
-  b.pos.set(...SERVE.pos);
-  b.vel.set(...SERVE.vel);
-  b.spin.set(...SERVE.spin);
+export function resetServe(b: BallState, type: ServeType = "backspin") {
+  const sv = SERVES[type];
+  b.pos.set(...sv.pos);
+  b.vel.set(...sv.vel);
+  b.spin.set(...sv.spin);
 }
 
 export function cloneBall(b: BallState): BallState {
@@ -142,7 +144,7 @@ const _vt = new THREE.Vector3();
 /** max. realistische Handgelenk-Drehgeschwindigkeit (rad/s) */
 export const MAX_WRIST = 12;
 /** Zeitlupen-Verstärkung für den Handgelenk-Anteil höchstens 1,5× */
-const MAX_WRIST_BOOST = 1.5;
+const MAX_WRIST_BOOST = 1;
 const _hand = new THREE.Vector3();
 const _w = new THREE.Vector3();
 const _np = new THREE.Vector3();
@@ -203,7 +205,9 @@ export function collideRacket(
   _vc.crossVectors(b.spin, _r).add(relT);
   _dv.copy(_vc).multiplyScalar(-RACKET_GRIP);
 
-  b.vel.copy(_rv).addScaledVector(_n, -vn * RACKET_RESTITUTION).add(relT).add(_dv);
+  // Rückprall tempoabhängig: sanfter Kontakt federt wenig, harter Schlag mehr
+  const e = RACKET_RESTITUTION * (0.6 + 0.4 * Math.min(1, -vn / 9));
+  b.vel.copy(_rv).addScaledVector(_n, -vn * e).add(relT).add(_dv);
   _t.crossVectors(_r, _dv).multiplyScalar(3 / (2 * BALL_RADIUS * BALL_RADIUS));
   b.spin.add(_t);
 

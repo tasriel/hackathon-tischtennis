@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { TABLE } from "./constants";
+import { TABLE, type ServeType } from "./constants";
+import { STROKES } from "./strokes";
 import { collideRacket, spinType, stepBall, type BallState, type RacketState } from "./physics";
 
 export type IdealShot = {
@@ -13,13 +14,23 @@ export type IdealShot = {
 /** Standard-Schupf, solange noch nichts berechnet wurde. */
 export const DEFAULT_IDEAL: IdealShot = { openDeg: 45, speed: 1.8, dirDeg: -5, wrist: 3, found: false };
 
+export function defaultIdeal(serve: ServeType): IdealShot {
+  return { ...STROKES[serve].fallback, wrist: 3, found: false };
+}
+
 const _prev = new THREE.Vector3();
 
 /**
  * Sucht mit derselben Physik den Schupf, der den ankommenden Ball am sichersten
  * mit Unterschnitt mittig auf die Gegnerseite bringt. Rein deterministisch.
  */
-export function findIdealShot(point: THREE.Vector3, velIn: THREE.Vector3, spinIn: THREE.Vector3): IdealShot {
+export function findIdealShot(
+  point: THREE.Vector3,
+  velIn: THREE.Vector3,
+  spinIn: THREE.Vector3,
+  serve: ServeType = "backspin",
+): IdealShot {
+  const spec = STROKES[serve];
   const racket: RacketState = {
     pos: point.clone(),
     normal: new THREE.Vector3(),
@@ -29,15 +40,15 @@ export function findIdealShot(point: THREE.Vector3, velIn: THREE.Vector3, spinIn
     timeScale: 1,
   };
   const b: BallState = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), spin: new THREE.Vector3() };
-  let best = { ...DEFAULT_IDEAL };
+  let best = defaultIdeal(serve);
   let bestScore = -Infinity;
   const dt = 1 / 240;
 
-  for (let open = 25; open <= 70; open += 5) {
+  for (let open = spec.open[0]; open <= spec.open[1]; open += spec.open[2]) {
     const o = THREE.MathUtils.degToRad(open);
     racket.normal.set(0, Math.sin(o), -Math.cos(o));
-    for (let speed = 0.6; speed <= 4.01; speed += 0.4) {
-      for (let dir = -30; dir <= 30; dir += 10) {
+    for (let speed = spec.speed[0]; speed <= spec.speed[1] + 0.01; speed += spec.speed[2]) {
+      for (let dir = spec.dir[0]; dir <= spec.dir[1]; dir += spec.dir[2]) {
         const d = THREE.MathUtils.degToRad(dir);
         racket.vel.set(0, Math.sin(d), -Math.cos(d)).multiplyScalar(speed);
         b.pos.copy(point).addScaledVector(velIn, -dt * 3);
@@ -57,9 +68,9 @@ export function findIdealShot(point: THREE.Vector3, velIn: THREE.Vector3, spinIn
           if (e === "table-far") {
             const landZ = b.pos.z;
             score = 10 - Math.abs(landZ + TABLE.length / 4) * 6 - Math.abs(b.pos.x) * 2;
-            if (outSpin === "BACKSPIN") score += 4;
+            if (outSpin === spec.wantSpin) score += 4;
             score += Math.min(minNetGap, 0.12) * 20 - Math.max(0, minNetGap - 0.25) * 10;
-            score -= speed * 0.3; // ruhig bevorzugen
+            score -= spec.stroke === "Schupf" ? speed * 0.3 : Math.abs(speed - 3) * 0.2;
           }
           break;
         }

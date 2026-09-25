@@ -15,18 +15,21 @@ import {
 } from "@/lib/physics";
 import { timeScaleFor } from "@/lib/timescale";
 import { predictReturn } from "@/lib/trajectory";
-import { findIdealShot } from "@/lib/idealShot";
+import { defaultIdeal, findIdealShot } from "@/lib/idealShot";
+import { settings } from "@/lib/settings";
+import { Menus } from "./LeftMenu";
 import { coach, describe, type ShotMetrics, type ShotResult } from "@/lib/coaching";
 import { BallModel } from "./BallModel";
 import { RacketModel } from "./RacketModel";
 import { Table } from "./Table";
 import { Label } from "./Label";
-import { SpinOverlay, makeSnapshot, type ContactSnapshot } from "./SpinOverlay";
+import { SpinOverlay, makeSnapshot, CLIP_BEFORE, CLIP_AFTER, type ContactSnapshot, type ClipFrame } from "./SpinOverlay";
 import { Target } from "./Target";
 
 export type HudState = { result: ShotResult | null; hint: string; info: string; timeScale: number };
 
 const PHYS_DT = 1 / 240;
+const RING = 180; // ~2 s bei 90 Hz
 const RESULT_COLORS = { success: "#2e9e4f", fail: "#c0392b" } as const;
 const TABLE_BLUE = new THREE.Color("#1d4f8a");
 const NET_WHITE = new THREE.Color("#eeeeee");
@@ -102,7 +105,11 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
   const previewAlpha = useRef(0);
 
   const restart = () => {
-    resetServe(ball);
+    resetServe(ball, settings.serve);
+    s0.clipPending = false;
+    snap.current.active = false;
+    snap.current.ready = false;
+    snap.current.ideal = defaultIdeal(settings.serve);
     _prevPos.copy(ball.pos);
     const s = sim.current;
     s.hit = false;
@@ -156,9 +163,9 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
       result,
     };
     m.result = result;
-    const h = coach(m);
+    const h = coach(m, settings.serve);
     const i = s.metrics ? describe(m) : "";
-    setHint(h);
+    setHint(h + "  ·  Trigger / Leertaste = nächster Ball");
     setInfo(i);
     onHud({ result, hint: h, info: i, timeScale: 1 });
   };
@@ -176,6 +183,12 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
   const _plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 0, 1), -CONTACT_Z), []);
   const _up = useMemo(() => new THREE.Vector3(0, 1, 0), []);
   const trigWasPressed = useRef(false);
+  const s0 = useMemo(() => ({ clipPending: false }), []);
+  const ring = useMemo<ClipFrame[]>(
+    () => Array.from({ length: RING }, () => ({ t: 0, pos: new THREE.Vector3(), quat: new THREE.Quaternion(), ball: new THREE.Vector3(), spin: new THREE.Vector3() })),
+    [],
+  );
+  const ringIdx = useRef(0);
   // Schlägerpose pro Physikschritt (zwischen letztem und aktuellem Bild interpoliert)
   const stepR = useMemo<RacketState>(
     () => ({ ...racket, pos: new THREE.Vector3(), normal: new THREE.Vector3() }),
@@ -298,7 +311,8 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
           sn.dirDeg = THREE.MathUtils.radToDeg(Math.atan2(rv.y, Math.max(-rv.z, 1e-3)));
           sn.wrist = racket.angVel.length();
           sn.scale = scale;
-          sn.ideal = findIdealShot(lastContact.point, lastContact.velBefore, lastContact.spinBefore);
+          sn.ideal = findIdealShot(lastContact.point, lastContact.velBefore, lastContact.spinBefore, settings.serve);
+          s0.clipPending = true;
           sn.explain = explainContact(s.metrics);
         } else if (!s.done && (ball.pos.z > CONTACT_Z + 0.6 || ev === "floor")) finish("miss");
       } else if (!s.done) {
@@ -361,8 +375,28 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
       tableMats.current.net.color.copy(NET_WHITE).lerp(_c.set(col), target === "fail" ? s.flash : 0);
     }
 
-    // Automatischer Neustart nach 4 s
-    if (s.done && performance.now() - s.doneAt > 4000) restart();
+    // ---------- Aufzeichnung für die Overlay-Animation ----------
+    const now = performance.now();
+    const fr = ring[ringIdx.current % RING]!;
+    ringIdx.current++;
+    fr.t = now;
+    fr.pos.copy(racket.pos);
+    fr.quat.copy(racket.quat);
+    if (ballGroup.current) fr.ball.copy(ballGroup.current.position);
+    fr.spin.copy(ball.spin);
+    const sn = snap.current;
+    if (s0.clipPending && now - sn.t0 > CLIP_AFTER * 1000) {
+      s0.clipPending = false;
+      const frames: ClipFrame[] = [];
+      for (let i = Math.max(0, ringIdx.current - RING); i < ringIdx.current; i++) {
+        const f = ring[i % RING]!;
+        if (f.t >= sn.t0 - CLIP_BEFORE * 1000) {
+          frames.push({ t: (f.t - sn.t0) / 1000, pos: f.pos.clone(), quat: f.quat.clone(), ball: f.ball.clone(), spin: f.spin.clone() });
+        }
+      }
+      sn.clip = frames;
+      sn.ready = frames.length > 2;
+    }
 
   });
 
@@ -384,6 +418,7 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
       </group>
       <primitive object={previewMesh} />
       <Target ball={ball} enabled={() => sim.current.hit} />
+      <Menus onServeChange={restart} />
       <SpinOverlay ball={ball} racket={racket} snap={snap} getScale={() => sim.current.scale} />
       <Label text={hint} position={[0, TABLE.height + 0.55, -0.4]} height={0.08} />
       <Label text={info} position={[0, TABLE.height + 0.44, -0.4]} height={0.05} color="#cfd8e3" />
