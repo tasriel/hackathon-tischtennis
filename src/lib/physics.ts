@@ -24,6 +24,8 @@ export type RacketState = {
   normal: THREE.Vector3; // Blattnormale (Welt)
   vel: THREE.Vector3; // Geschwindigkeit der Blattmitte (Echtzeit, m/s)
   angVel: THREE.Vector3; // Winkelgeschwindigkeit des Blatts (Echtzeit, rad/s)
+  /** Geschwindigkeit der Hand/des Controllers (Echtzeit). Fehlt sie, gilt vel. */
+  handVel?: THREE.Vector3;
   quat: THREE.Quaternion;
   /** aktueller Zeitlupenfaktor: Echtzeit-Bewegung wird in Simulationszeit umgerechnet */
   timeScale: number;
@@ -137,15 +139,48 @@ const _rel = new THREE.Vector3();
 const _off = new THREE.Vector3();
 const _vt = new THREE.Vector3();
 
+/** max. realistische Handgelenk-Drehgeschwindigkeit (rad/s) */
+export const MAX_WRIST = 12;
+/** Zeitlupen-Verstärkung für den Handgelenk-Anteil höchstens 1,5× */
+const MAX_WRIST_BOOST = 1.5;
+const _hand = new THREE.Vector3();
+const _w = new THREE.Vector3();
+const _np = new THREE.Vector3();
+
 /**
- * Schläger-Ball-Kollision (Durchlauf-Test gegen die Blattebene).
- * Gibt true zurück, wenn getroffen wurde; Ball-Zustand wird angepasst.
+ * Wirksame Schlägergeschwindigkeit (Simulationszeit) an einem Punkt des Blatts.
+ * Armbewegung (Hand) wird mit der Zeitlupe verstärkt (≤3×), der Handgelenk-Anteil
+ * (Hebel Hand→Blatt + Drehung am Trefferpunkt) höchstens 1,5×.
  */
-export function collideRacket(b: BallState, prevPos: THREE.Vector3, r: RacketState): boolean {
+export function racketPointVel(r: RacketState, arm: THREE.Vector3, out: THREE.Vector3) {
+  const boost = slowmoBoost(r.timeScale);
+  const hand = r.handVel ?? r.vel;
+  _hand.copy(hand).multiplyScalar(boost);
+  _w.copy(r.angVel);
+  if (_w.length() > MAX_WRIST) _w.setLength(MAX_WRIST);
+  // Handgelenk: Blattmitte relativ zur Hand + Drehung um die Blattmitte
+  out.subVectors(r.vel, hand).add(_t.crossVectors(_w, arm));
+  out.multiplyScalar(Math.min(boost, MAX_WRIST_BOOST)).add(_hand);
+  if (out.length() > MAX_RACKET_SPEED) out.setLength(MAX_RACKET_SPEED);
+  return out;
+}
+
+/**
+ * Schläger-Ball-Kollision. Durchlauf-Test relativ zum Blatt: alter Ballabstand zur
+ * alten Blattebene vs. neuer zur neuen. So wird auch ein schnell über den Ball
+ * streichendes Blatt erkannt (kein Durchfliegen).
+ */
+export function collideRacket(
+  b: BallState,
+  prevPos: THREE.Vector3,
+  r: RacketState,
+  rPrev?: { pos: THREE.Vector3; normal: THREE.Vector3 },
+): boolean {
   _n.copy(r.normal).normalize();
-  const d0 = _off.subVectors(prevPos, r.pos).dot(_n);
+  _np.copy(rPrev ? rPrev.normal : r.normal).normalize();
+  const d0 = _off.subVectors(prevPos, rPrev ? rPrev.pos : r.pos).dot(_np);
   const d1 = _off.subVectors(b.pos, r.pos).dot(_n);
-  const crossed = d0 * d1 <= 0 || Math.abs(d1) < BALL_RADIUS;
+  const crossed = d0 * d1 <= 0 || Math.abs(d1) < BALL_RADIUS + 0.004;
   if (!crossed) return false;
   // Abstand in der Ebene
   _off.subVectors(b.pos, r.pos);
@@ -153,12 +188,9 @@ export function collideRacket(b: BallState, prevPos: THREE.Vector3, r: RacketSta
   if (inPlane > RACKET_RADIUS + BALL_RADIUS) return false;
 
   // Normale zeigt zur Seite, von der der Ball kam
-  if (d0 < 0) _n.negate();
-  // Geschwindigkeit des Schlägers am tatsächlichen Kontaktpunkt (inkl. Drehung),
-  // umgerechnet von Echtzeit in Simulationszeit (Zeitlupe!)
+  if (d0 < 0 || (d0 === 0 && d1 < 0)) _n.negate();
   _arm.subVectors(b.pos, r.pos).addScaledVector(_n, -_off.subVectors(b.pos, r.pos).dot(_n));
-  _rv.crossVectors(r.angVel, _arm).add(r.vel).multiplyScalar(slowmoBoost(r.timeScale));
-  if (_rv.length() > MAX_RACKET_SPEED) _rv.setLength(MAX_RACKET_SPEED);
+  racketPointVel(r, _arm, _rv);
   _rel.subVectors(b.vel, _rv);
   const vn = _rel.dot(_n);
   if (vn >= 0) return false; // bewegt sich schon weg
