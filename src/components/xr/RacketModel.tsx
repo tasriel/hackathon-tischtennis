@@ -5,7 +5,7 @@ import { SceneModel } from "./SceneModel";
  * Austauschbare Schläger-Hülle. Konvention:
  * - Blattmitte im Ursprung, Blattnormale = lokale X-Achse,
  * - Griff zeigt in lokale +Z-Richtung (zur Hand).
-  * Das Meshy-Modell ist maßstäblich auf 17 cm Blattbreite skaliert; die Physik
+ * Das Meshy-Modell ist maßstäblich auf 17 cm Blattbreite skaliert; die Physik
  * bleibt unabhängig davon und nutzt RACKET_RADIUS.
  */
 export function RacketModel() {
