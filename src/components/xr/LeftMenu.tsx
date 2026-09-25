@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import * as THREE from "three";
 import type { ServeType } from "@/lib/constants";
 import { setSetting, useSettings, type TargetSpot } from "@/lib/settings";
 import { STROKES } from "@/lib/strokes";
@@ -11,6 +12,7 @@ const ACTIVE_EDGE = "#c4b5fd";
 const TEXT = "#f8fafc";
 const MUTED = "#aeb8cc";
 const GOLD = "#e6d36a";
+const PANEL_ROTATION: [number, number, number] = [0, -0.32, 0];
 
 function MenuButton({
   label,
@@ -52,10 +54,14 @@ function MenuButton({
 function Panel({ title, subtitle, position, size, children }: { title: string; subtitle: string; position: [number, number, number]; size: [number, number]; children: React.ReactNode }) {
   const [w, h] = size;
   return (
-    <group position={position} rotation={[0, 0, 0]}>
+    <group position={position} rotation={PANEL_ROTATION}>
       <mesh position={[0, 0, -0.012]}>
         <boxGeometry args={[w, h, 0.018]} />
         <meshStandardMaterial color={PANEL} transparent opacity={0.93} roughness={0.36} />
+      </mesh>
+      <mesh position={[0, 0, 0.002]}>
+        <planeGeometry args={[w - 0.028, h - 0.028]} />
+        <meshBasicMaterial color={PANEL_2} transparent opacity={0.38} side={THREE.DoubleSide} />
       </mesh>
       <mesh position={[0, h / 2 - 0.035, 0.002]}>
         <boxGeometry args={[w - 0.035, 0.012, 0.01]} />
@@ -91,28 +97,29 @@ export function Menus() {
 
   return (
     <>
-      <Panel title="Schnitt-Variante" subtitle="1 / 2 / 3" position={[-1.04, 1.14, 1.58]} size={[0.48, 0.39]}>
+      <Panel title="Schnitt-Variante" subtitle="1 / 2 / 3" position={[-1.45, 1.14, 0.98]} size={[0.54, 0.43]}>
         {SERVES.map((k, i) => (
           <MenuButton
             key={k}
             label={STROKES[k].serveLabel}
             active={s.serve === k}
-            position={[0, 0.055 - i * 0.092, 0]}
-            width={0.39}
+            position={[0, 0.055 - i * 0.1, 0]}
+            width={0.44}
+            height={0.082}
             onSelect={() => setSetting("serve", k)}
           />
         ))}
       </Panel>
 
-      <Panel title="Target" subtitle="J / K / L" position={[-1.04, 0.67, 1.58]} size={[0.62, 0.26]}>
+      <Panel title="Target" subtitle="J / K / L" position={[-1.45, 0.66, 0.98]} size={[0.74, 0.3]}>
         {SPOTS.map((sp, i) => (
           <MenuButton
             key={sp.key}
             label={sp.label}
             active={s.target === sp.key}
-            position={[(i - 1) * 0.19, -0.035, 0]}
-            width={0.17}
-            height={0.09}
+            position={[(i - 1) * 0.23, -0.035, 0]}
+            width={0.2}
+            height={0.105}
             onSelect={() => setSetting("target", sp.key)}
           />
         ))}
