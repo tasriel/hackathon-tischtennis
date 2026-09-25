@@ -14,4 +14,5 @@
 - [x] Ball in Zeitlupe blass orange darstellen; Spinmuster mit dunkelrotem Kontraststreifen klar erkennbar halten.
 - [x] Ballfarbe nur an die tatsächliche Zeitlupe koppeln und mit kräftigerem Orange kontrastieren; nach Rückkehr zu Normaltempo wieder weiß.
 - [x] Ballfarbe stufenlos proportional zum Zeitfaktor von Weiß bis Orange und zurück mischen.
+- [x] Review-Ball unabhängig dauerhaft orange zeigen und Live-Ball im Replay-Bild ausblenden, damit am Treffpunkt nur ein Ball erscheint.
 - [ ] Test auf der Quest 3 (braucht das Headset).

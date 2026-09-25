@@ -10,3 +10,4 @@
 <!-- LOVABLE:END -->
 
 - Keep imported GLB visuals isolated in `SceneModel`-based shells while physics uses canonical metric constants, so models remain replaceable.
+- Render replay-only ball visuals on the overlay layer with a separate material, so review color and position cannot alter the live ball.

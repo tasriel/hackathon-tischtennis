@@ -11,6 +11,8 @@ import { racketPointVel, slowmoBoost, spinType, type BallState, type RacketState
 import { DEFAULT_IDEAL, type IdealShot } from "@/lib/idealShot";
 import { settings } from "@/lib/settings";
 import { STROKES } from "@/lib/strokes";
+import { FREEZE_SCALE } from "@/lib/timescale";
+import { BallModel } from "./BallModel";
 import { Label } from "./Label";
 
 /** Layer nur für die Nahaufnahme (Pfeile, Texte). Hauptkamera sieht ihn nicht. */
@@ -270,11 +272,6 @@ export function SpinOverlay({
     const ideal = makeArrow(IDEAL);
     const userRacket = makeGhost(USER, 0.55);
     const idealRacket = makeGhost(IDEAL, 0.45);
-    const ghostBall = new THREE.Mesh(
-      new THREE.SphereGeometry(BALL_RADIUS, 16, 12),
-      new THREE.MeshBasicMaterial({ color: "#ffb347", depthTest: false }),
-    );
-    ghostBall.renderOrder = 12;
     const userTrail = makeTrail(USER);
     const idealTrail = makeTrail(IDEAL);
     const tableLine = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.01, 3), new THREE.MeshBasicMaterial({ color: "#1b3a68" }));
@@ -288,14 +285,16 @@ export function SpinOverlay({
     bar.renderOrder = marker.renderOrder = 12;
     bar.rotation.y = marker.rotation.y = -Math.PI / 2;
     const root = new THREE.Group();
-    root.add(spin.group, user.group, ideal.group, userRacket, idealRacket, ghostBall, userTrail, idealTrail, tableLine, sidePanel, divider, bar, marker);
+    root.add(spin.group, user.group, ideal.group, userRacket, idealRacket, userTrail, idealTrail, tableLine, sidePanel, divider, bar, marker);
     setLayer(root, OVERLAY_LAYER);
-    return { root, spin, user, ideal, userRacket, idealRacket, ghostBall, userTrail, idealTrail, tableLine, sidePanel, divider, bar, marker };
+    return { root, spin, user, ideal, userRacket, idealRacket, userTrail, idealTrail, tableLine, sidePanel, divider, bar, marker };
   }, []);
 
   const labelsRef = useRef<THREE.Group>(null);
+  const reviewBall = useRef<THREE.Group>(null);
   useLayoutEffect(() => {
     if (labelsRef.current) setLayer(labelsRef.current, OVERLAY_LAYER);
+    if (reviewBall.current) setLayer(reviewBall.current, OVERLAY_LAYER);
   });
 
   const panel = useRef<THREE.Mesh>(null);
@@ -352,7 +351,11 @@ export function SpinOverlay({
       sampleClip(s.clip, tClip, _p, _q, _b);
       helpers.userRacket.position.copy(_p);
       helpers.userRacket.quaternion.copy(_q);
-      helpers.ghostBall.position.copy(_b);
+      if (reviewBall.current) {
+        reviewBall.current.position.copy(_b);
+        const spin = tClip < 0 ? s.spinBefore : s.spinAfter;
+        if (spin.lengthSq() > 0) reviewBall.current.quaternion.setFromAxisAngle(_d.copy(spin).normalize(), tClip * spin.length());
+      }
       const boost = slowmoBoost(s.scale);
       idealDir(ideal.dirDeg, _d);
       idealPos(s.racketPos, _d, ideal.speed / boost, tClip, helpers.idealRacket.position);
@@ -361,7 +364,6 @@ export function SpinOverlay({
     }
     helpers.userRacket.visible = false;
     helpers.idealRacket.visible = replay;
-    helpers.ghostBall.visible = false;
     helpers.userTrail.visible = replay;
     helpers.idealTrail.visible = replay;
     helpers.tableLine.visible = replay;
@@ -371,7 +373,7 @@ export function SpinOverlay({
     const w = spinVec.length();
     helpers.spin.group.visible = w > 5;
     if (w > 5) {
-      helpers.spin.group.position.copy(replay ? helpers.ghostBall.position : ball.pos);
+      helpers.spin.group.position.copy(replay ? _b : ball.pos);
       helpers.spin.group.quaternion.setFromUnitVectors(Z, _d.copy(spinVec).divideScalar(w));
       helpers.spin.group.scale.setScalar(BALL_RADIUS * 1.8);
       const st = replay
@@ -448,12 +450,11 @@ export function SpinOverlay({
       if (JSON.stringify(next) !== JSON.stringify(texts)) setTexts(next);
     }
 
-    // Replay: echte Ball-/Schläger-Modelle kurz an die aufgezeichnete Stelle setzen
+    // Replay: Live-Ball im Nahaufnahme-Render ausblenden; eigener Review-Ball bleibt unabhängig orange.
     const bo = ballObj?.current;
     const ro = racketObj?.current;
-    const saved = replay && bo && ro ? { bp: bo.position.clone(), rp: ro.position.clone(), rq: ro.quaternion.clone() } : null;
-    if (saved && bo && ro) {
-      bo.position.copy(_b);
+    const savedRacket = replay && ro ? { rp: ro.position.clone(), rq: ro.quaternion.clone() } : null;
+    if (savedRacket && ro) {
       ro.position.copy(_p);
       ro.quaternion.copy(_q);
     }
@@ -465,17 +466,21 @@ export function SpinOverlay({
     gl.setClearColor(PANEL_BG, 1);
     gl.clear();
     const restorePointers = replay ? hideXRPointerVisuals(scene) : () => {};
+    const liveBallWasVisible = bo?.visible;
+    if (replay && bo) bo.visible = false;
+    if (reviewBall.current) reviewBall.current.visible = replay;
     try {
       gl.render(scene, cam);
     } finally {
+      if (bo && liveBallWasVisible !== undefined) bo.visible = liveBallWasVisible;
+      if (reviewBall.current) reviewBall.current.visible = false;
       restorePointers();
       gl.setRenderTarget(prev);
       gl.xr.enabled = xrOn;
     }
-    if (saved && bo && ro) {
-      bo.position.copy(saved.bp);
-      ro.position.copy(saved.rp);
-      ro.quaternion.copy(saved.rq);
+    if (savedRacket && ro) {
+      ro.position.copy(savedRacket.rp);
+      ro.quaternion.copy(savedRacket.rq);
     }
 
     // Tafel platzieren
@@ -512,6 +517,9 @@ export function SpinOverlay({
   return (
     <>
       <primitive object={helpers.root} />
+      <group ref={reviewBall} visible={false}>
+        <BallModel getTimeScale={() => FREEZE_SCALE} />
+      </group>
       <group ref={labelsRef}>
         <Label text={texts.title} anchor="left" position={[0, 0.215, -0.44]} height={0.034} color={VIOLET_SOFT} bg="rgba(0,0,0,0)" />
         <Label text={texts.state} anchor="left" position={[0, 0.178, -0.44]} height={0.022} color={TEXT_MUTED} bg="rgba(0,0,0,0)" />
