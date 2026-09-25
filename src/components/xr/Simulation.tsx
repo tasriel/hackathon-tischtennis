@@ -52,7 +52,6 @@ const PHYS_DT = 1 / 240;
 const RING = 180; // ~2 s bei 90 Hz
 const RESULT_COLORS = { success: "#2e9e4f", fail: "#c0392b" } as const;
 const TABLE_BLUE = new THREE.Color("#1d4f8a");
-const NET_WHITE = new THREE.Color("#eeeeee");
 
 // Schläger relativ zum Controller: Blatt ~13 cm vor der Hand
 const GRIP_OFFSET = new THREE.Vector3(0, 0.02, -0.13);
@@ -366,7 +365,7 @@ export function Simulation() {
       tableMats.current.far.emissive.set(target === "success" ? col : "#000000").multiplyScalar(s.flash * 0.4);
     }
     if (tableMats.current.net) {
-      tableMats.current.net.color.copy(NET_WHITE).lerp(_c.set(col), target === "fail" ? s.flash : 0);
+      tableMats.current.net.emissive.set(RESULT_COLORS.fail).multiplyScalar(target === "fail" ? s.flash * 0.6 : 0);
     }
 
     // ---------- Aufzeichnung für die Overlay-Animation ----------
