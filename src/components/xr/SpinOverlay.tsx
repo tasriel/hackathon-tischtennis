@@ -542,11 +542,12 @@ export function SpinOverlay({
       </group>
       <mesh ref={frame} renderOrder={19} onUpdate={(m) => m.layers.set(PANEL_LAYER)}>
         <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial color="#111827" depthTest={false} />
+        {/* Volle Deckkraft, aber in der transparenten Render-Gruppe nach dem Netz zeichnen. */}
+        <meshBasicMaterial color="#111827" transparent opacity={1} depthTest={false} depthWrite={false} />
       </mesh>
       <mesh ref={panel} renderOrder={20} onUpdate={(m) => m.layers.set(PANEL_LAYER)}>
         <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial map={fbo.texture} toneMapped={false} transparent={false} depthTest={false} depthWrite />
+        <meshBasicMaterial map={fbo.texture} toneMapped={false} transparent opacity={1} depthTest={false} depthWrite={false} />
       </mesh>
     </>
   );

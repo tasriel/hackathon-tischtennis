@@ -19,4 +19,5 @@
 - [x] Netzmaschen schwarz, Netz auf Tischbreite, weißes Oberband und schwarze senkrechte Befestigungen an beiden Enden.
 - [x] Netzfarbe bleibt bei Fehlschlägen schwarz; rote Umrandung und Basketball-Hallenmarkierungen auf dem Boden.
 - [x] Hallenlinien blasser und nur in der Hauptansicht sichtbar; Review-Fenster deckend; Außenringe des Targets lösen Treffer-Effekte aus.
+- [x] Review-Fenster und Rahmen vor transparentem Netz und übriger Halle zeichnen, ohne das Netz in der Replay-Aufnahme zu entfernen.
 - [ ] Test auf der Quest 3 (braucht das Headset).
