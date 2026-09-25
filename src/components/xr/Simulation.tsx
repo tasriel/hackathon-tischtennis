@@ -403,7 +403,7 @@ export function Simulation() {
       </group>
       <group ref={ballGroup}>
         <group>
-          <BallModel isSlowMotion={() => sim.current.scale < 0.95 || snap.current.ready} />
+          <BallModel isSlowMotion={() => sim.current.scale < 0.95} />
         </group>
         <BallSpinLabel ball={ball} />
       </group>

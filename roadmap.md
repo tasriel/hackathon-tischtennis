@@ -12,4 +12,5 @@
 - [x] Neue Qualitätsmodelle für Tisch, Schläger, Ziel und Netz einsetzen; Schlägerachse und Netzkante prüfen.
 - [x] Halle wieder aufhellen (hellgrüner Boden, dunkler grüner Wandsockel); im Replay Controller-Zeiger ausblenden und rote/grüne Schlagspuren verbreitern.
 - [x] Ball in Zeitlupe blass orange darstellen; Spinmuster mit dunkelrotem Kontraststreifen klar erkennbar halten.
+- [x] Ballfarbe nur an die tatsächliche Zeitlupe koppeln und mit kräftigerem Orange kontrastieren; nach Rückkehr zu Normaltempo wieder weiß.
 - [ ] Test auf der Quest 3 (braucht das Headset).

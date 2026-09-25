@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { BALL_RADIUS } from "@/lib/constants";
 
 const NORMAL_BALL = new THREE.Color("#f7f3ea");
-const SLOWMO_BALL = new THREE.Color("#f3b77f");
+const SLOWMO_BALL = new THREE.Color("#ef8e39");
 const SPIN_BAND = "#8f2d1f";
 const SPIN_CROSS = "#175b91";
 
