@@ -7,20 +7,22 @@ import {
   collideRacket,
   makeBall,
   lastContact,
+  MAX_WRIST,
   resetServe,
-  slowmoBoost,
   spinType,
   stepBall,
   type RacketState,
 } from "@/lib/physics";
 import { timeScaleFor } from "@/lib/timescale";
 import { predictReturn } from "@/lib/trajectory";
+import { findIdealShot } from "@/lib/idealShot";
 import { coach, describe, type ShotMetrics, type ShotResult } from "@/lib/coaching";
 import { BallModel } from "./BallModel";
 import { RacketModel } from "./RacketModel";
 import { Table } from "./Table";
 import { Label } from "./Label";
-import { SpinOverlay, type ContactSnapshot } from "./SpinOverlay";
+import { SpinOverlay, makeSnapshot, type ContactSnapshot } from "./SpinOverlay";
+import { CupPyramid } from "./CupPyramid";
 
 export type HudState = { result: ShotResult | null; hint: string; info: string; timeScale: number };
 
@@ -35,16 +37,19 @@ const GRIP_ROT = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.5, 0, 0)
 
 export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
   const ball = useMemo(() => makeBall(), []);
+  const handVel = useMemo(() => new THREE.Vector3(), []);
+  const previewHand = useMemo(() => new THREE.Vector3(), []);
   const racket = useMemo<RacketState>(
     () => ({
       pos: new THREE.Vector3(0.25, 0.95, CONTACT_Z),
       normal: new THREE.Vector3(0, 0, -1),
       vel: new THREE.Vector3(),
       angVel: new THREE.Vector3(),
+      handVel,
       quat: new THREE.Quaternion(),
       timeScale: 1,
     }),
-    [],
+    [handVel],
   );
   const sim = useRef({
     hit: false,
@@ -66,18 +71,11 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
   const ballGroup = useRef<THREE.Group>(null);
   const axisRef = useRef<THREE.Mesh>(null);
   const racketGroup = useRef<THREE.Group>(null);
-  const snap = useRef<ContactSnapshot>({
-    active: false,
-    point: new THREE.Vector3(),
-    friction: new THREE.Vector3(),
-    spinBefore: new THREE.Vector3(),
-    spinAfter: new THREE.Vector3(),
-    explain: "",
-  });
+  const snap = useRef<ContactSnapshot>(makeSnapshot());
   // Für die Vorschau: stärker geglättete Schlägerbewegung, damit die Kurve nicht zappelt
   const previewRacket = useMemo<RacketState>(
-    () => ({ ...racket, vel: new THREE.Vector3(), angVel: new THREE.Vector3() }),
-    [racket],
+    () => ({ ...racket, vel: new THREE.Vector3(), angVel: new THREE.Vector3(), handVel: previewHand }),
+    [racket, previewHand],
   );
   const tableMats = useRef<{ far: THREE.MeshStandardMaterial | null; net: THREE.MeshStandardMaterial | null }>({
     far: null,
@@ -105,10 +103,11 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
 
   const restart = () => {
     resetServe(ball);
+    _prevPos.copy(ball.pos);
     const s = sim.current;
     s.hit = false;
     s.done = false;
-    snap.current.active = false;
+    s.acc = 0;
     s.metrics = null;
     s.flashTarget = "none";
     s.lastSpin = "";
@@ -168,12 +167,21 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
   const _tmp = useMemo(() => new THREE.Vector3(), []);
   const _q = useMemo(() => new THREE.Quaternion(), []);
   const _lastRacket = useMemo(() => new THREE.Vector3(), []);
+  const _lastNormal = useMemo(() => new THREE.Vector3(0, 0, -1), []);
   const _lastQuat = useMemo(() => new THREE.Quaternion(), []);
+  const _hand = useMemo(() => new THREE.Vector3(), []);
+  const _lastHand = useMemo(() => new THREE.Vector3(), []);
   const _shoulder = useMemo(() => new THREE.Vector3(), []);
   const _ray = useMemo(() => new THREE.Raycaster(), []);
   const _plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 0, 1), -CONTACT_Z), []);
   const _up = useMemo(() => new THREE.Vector3(0, 1, 0), []);
   const trigWasPressed = useRef(false);
+  // Schlägerpose pro Physikschritt (zwischen letztem und aktuellem Bild interpoliert)
+  const stepR = useMemo<RacketState>(
+    () => ({ ...racket, pos: new THREE.Vector3(), normal: new THREE.Vector3() }),
+    [racket],
+  );
+  const lastTest = useMemo(() => ({ pos: racket.pos.clone(), normal: racket.normal.clone() }), [racket]);
 
   useFrame((_, rawDelta) => {
     const dt = Math.min(rawDelta, 0.05);
@@ -181,17 +189,24 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
 
     // ---------- Schlägerpose ----------
     _lastRacket.copy(racket.pos);
+    _lastNormal.copy(racket.normal);
     _lastQuat.copy(racket.quat);
+    _lastHand.copy(_hand);
     const obj = controller?.object;
     if (isXR && obj) {
       obj.getWorldPosition(racket.pos);
+      _hand.copy(racket.pos);
       obj.getWorldQuaternion(racket.quat);
       racket.quat.multiply(GRIP_ROT);
       racket.pos.add(_tmp.copy(GRIP_OFFSET).applyQuaternion(racket.quat));
       // Armlänge begrenzen
       camera.getWorldPosition(_shoulder).add(_tmp.set(0.18, -0.3, 0));
       _tmp.subVectors(racket.pos, _shoulder);
-      if (_tmp.length() > ARM_REACH) racket.pos.copy(_shoulder).add(_tmp.setLength(ARM_REACH));
+      if (_tmp.length() > ARM_REACH) {
+        const shift = _tmp.length() - ARM_REACH;
+        racket.pos.copy(_shoulder).add(_tmp.setLength(ARM_REACH));
+        _hand.addScaledVector(_tmp.normalize(), -shift);
+      }
       // Neustart per Trigger
       const pressed = controller.gamepad?.["xr-standard-trigger"]?.state === "pressed";
       if (pressed && !trigWasPressed.current) restart();
@@ -204,24 +219,29 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
         _tmp.y = THREE.MathUtils.clamp(_tmp.y, TABLE.height + 0.05, 1.5);
         racket.pos.lerp(_tmp, 1 - Math.exp(-25 * dt));
       }
-      // Blattnormale zeigt Richtung Gegner (-z), gekippt um desktopTilt nach oben
       racket.quat.setFromEuler(new THREE.Euler(0, Math.PI / 2, s.desktopTilt, "YXZ"));
+      _hand.copy(racket.pos);
     }
     racket.normal.set(1, 0, 0).applyQuaternion(racket.quat);
-    // geglättete Schlägergeschwindigkeit (Echtzeit)
-    _tmp.subVectors(racket.pos, _lastRacket).divideScalar(Math.max(dt, 1e-3));
-    // ~3–4 Frames Mittelung (Quest-Tracking bei 72–90 Hz ist pro Frame verrauscht)
-    racket.vel.lerp(_tmp, 1 - Math.exp(-30 * dt));
-    // Winkelgeschwindigkeit aus Orientierungsänderung
+    const idt = 1 / Math.max(dt, 1e-3);
+    // geglättete Geschwindigkeiten (Echtzeit), ~3–4 Frames Mittelung gegen Tracking-Rauschen
+    const k30 = 1 - Math.exp(-30 * dt);
+    _tmp.subVectors(racket.pos, _lastRacket).multiplyScalar(idt);
+    racket.vel.lerp(_tmp, k30);
+    _tmp.subVectors(_hand, _lastHand).multiplyScalar(idt);
+    handVel.lerp(_tmp, k30);
+    // Winkelgeschwindigkeit aus Orientierungsänderung (stärker geglättet, begrenzt)
     _q.copy(racket.quat).multiply(_lastQuat.invert());
     if (_q.w < 0) _q.set(-_q.x, -_q.y, -_q.z, -_q.w);
     const ang = 2 * Math.acos(Math.min(1, _q.w));
     const sinH = Math.sqrt(Math.max(0, 1 - _q.w * _q.w));
-    if (sinH > 1e-5) _tmp.set(_q.x, _q.y, _q.z).divideScalar(sinH).multiplyScalar(ang / Math.max(dt, 1e-3));
+    if (sinH > 1e-5) _tmp.set(_q.x, _q.y, _q.z).divideScalar(sinH).multiplyScalar(ang * idt);
     else _tmp.set(0, 0, 0);
-    racket.angVel.lerp(_tmp, 1 - Math.exp(-30 * dt));
+    if (_tmp.length() > MAX_WRIST) _tmp.setLength(MAX_WRIST);
+    racket.angVel.lerp(_tmp, 1 - Math.exp(-15 * dt));
     previewRacket.vel.lerp(racket.vel, 1 - Math.exp(-6 * dt));
     previewRacket.angVel.lerp(racket.angVel, 1 - Math.exp(-6 * dt));
+    previewHand.lerp(handVel, 1 - Math.exp(-6 * dt));
     if (racketGroup.current) {
       racketGroup.current.position.copy(racket.pos);
       racketGroup.current.quaternion.copy(racket.quat);
@@ -232,7 +252,9 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
     const scale = s.done && !s.hit ? 1 : timeScaleFor(ball.pos.z, s.hit, sinceHit);
     s.scale = scale;
     racket.timeScale = scale;
+    stepR.timeScale = scale;
     s.acc += dt * scale;
+    const planned = Math.min(40, Math.floor(s.acc / PHYS_DT));
     let steps = 0;
     while (s.acc >= PHYS_DT && steps < 40) {
       s.acc -= PHYS_DT;
@@ -240,26 +262,43 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
       _prevPos.copy(ball.pos);
       const ev = stepBall(ball, PHYS_DT);
       if (!s.hit) {
-        if (!s.done && collideRacket(ball, _prevPos, racket)) {
+        const a = steps / Math.max(planned, 1);
+        stepR.pos.lerpVectors(_lastRacket, racket.pos, a);
+        stepR.normal.lerpVectors(_lastNormal, racket.normal, a).normalize();
+        const hitNow = !s.done && collideRacket(ball, _prevPos, stepR, lastTest);
+        lastTest.pos.copy(stepR.pos);
+        lastTest.normal.copy(stepR.normal);
+        if (hitNow) {
+          _prevPos.copy(ball.pos);
           s.hit = true;
           s.hitAt = performance.now();
           const toFar = _tmp.copy(racket.normal);
           if (toFar.z > 0) toFar.negate();
-          const boost = slowmoBoost(scale);
+          const rv = lastContact.racketVel;
           s.metrics = {
             incomingSpin: s.incoming,
             outgoingSpin: spinType(ball),
             openDeg: THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(toFar.y, -1, 1))),
-            upSpeed: racket.vel.y * boost,
-            forwardSpeed: -racket.vel.z * boost,
+            upSpeed: rv.y,
+            forwardSpeed: -rv.z,
             result: "miss",
           };
           const sn = snap.current;
           sn.active = true;
+          sn.t0 = performance.now();
           sn.point.copy(lastContact.point);
           sn.friction.copy(lastContact.friction);
           sn.spinBefore.copy(lastContact.spinBefore);
           sn.spinAfter.copy(lastContact.spinAfter);
+          sn.racketPos.copy(stepR.pos);
+          sn.racketQuat.copy(racket.quat);
+          sn.racketVel.copy(rv);
+          sn.openDeg = s.metrics.openDeg;
+          sn.speed = rv.length();
+          sn.dirDeg = THREE.MathUtils.radToDeg(Math.atan2(rv.y, Math.max(-rv.z, 1e-3)));
+          sn.wrist = racket.angVel.length();
+          sn.scale = scale;
+          sn.ideal = findIdealShot(lastContact.point, lastContact.velBefore, lastContact.spinBefore);
           sn.explain = explainContact(s.metrics);
         } else if (!s.done && (ball.pos.z > CONTACT_Z + 0.6 || ev === "floor")) finish("miss");
       } else if (!s.done) {
@@ -268,17 +307,17 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
         else if (ev === "table-near") finish("own");
         else if (ev === "floor" || ball.pos.z < -TABLE.length / 2 - 0.3 || ball.pos.z > 3) finish("out");
       }
-      // sichtbare Rotation (Simulationszeit)
-      if (ballGroup.current) {
-        const w = ball.spin.length();
-        if (w > 0) {
-          _q.setFromAxisAngle(_tmp.copy(ball.spin).divideScalar(w), w * PHYS_DT);
-          ballGroup.current.children[0]!.quaternion.premultiply(_q);
-        }
-      }
     }
 
-    if (ballGroup.current) ballGroup.current.position.copy(ball.pos);
+    // Weiche Darstellung zwischen zwei Physikschritten
+    if (ballGroup.current) {
+      ballGroup.current.position.lerpVectors(_prevPos, ball.pos, Math.min(1, s.acc / PHYS_DT));
+      const w = ball.spin.length();
+      if (w > 0) {
+        _q.setFromAxisAngle(_tmp.copy(ball.spin).divideScalar(w), w * dt * scale);
+        ballGroup.current.children[0]!.quaternion.premultiply(_q);
+      }
+    }
     if (axisRef.current) {
       const w = ball.spin.length();
       axisRef.current.visible = w > 5;
@@ -344,6 +383,7 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
         <Label text={spinLabel} position={[0, 0.06, 0]} height={0.035} />
       </group>
       <primitive object={previewMesh} />
+      <CupPyramid ball={ball} enabled={() => sim.current.hit} />
       <SpinOverlay ball={ball} racket={racket} snap={snap} getScale={() => sim.current.scale} />
       <Label text={hint} position={[0, TABLE.height + 0.55, -0.4]} height={0.08} />
       <Label text={info} position={[0, TABLE.height + 0.44, -0.4]} height={0.05} color="#cfd8e3" />
