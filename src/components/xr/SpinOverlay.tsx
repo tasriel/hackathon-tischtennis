@@ -277,7 +277,9 @@ export function SpinOverlay({
     // ---- Ideal-Pfeil (weiß) ----
     const di = THREE.MathUtils.degToRad(ideal.dirDeg);
     _d.set(0, Math.sin(di), -Math.cos(di));
-    setArrow(helpers.ideal, _v.copy(origin).add(_live.set(0, 0.012, 0)), _d, arrowLen(ideal.speed), 0.003);
+    _v.copy(origin);
+    _v.y += 0.012;
+    setArrow(helpers.ideal, _v, _d, arrowLen(ideal.speed), 0.003);
 
     // ---- Schläger-Geister (nur in der Wiederholung) ----
     helpers.userRacket.visible = replay;
