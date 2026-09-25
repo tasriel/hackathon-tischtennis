@@ -35,13 +35,15 @@ function playCelebration() {
   window.setTimeout(() => void ctx.close(), 700);
 }
 
-export function Target({ ball, enabled }: { ball: BallState; enabled: () => boolean }) {
+export type TargetImpact = { x: number; z: number; sequence: number };
+
+export function Target({ impact }: { impact: React.RefObject<TargetImpact> }) {
   const root = useRef<THREE.Group>(null);
   const model = useRef<THREE.Group>(null);
   const glow = useRef<THREE.Mesh>(null);
   const confetti = useRef<THREE.Points>(null);
   const x = useRef(0);
-  const wasHit = useRef(false);
+  const lastImpact = useRef(0);
   const effect = useRef(0);
   const confettiAge = useRef(99);
 
@@ -75,17 +77,15 @@ export function Target({ ball, enabled }: { ball: BallState; enabled: () => bool
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
     x.current += (TARGET_X[settings.target] - x.current) * (1 - Math.exp(-10 * dt));
-    const hit =
-      enabled() &&
-      Math.hypot(ball.pos.x - x.current, ball.pos.z - TARGET_Z) <= TARGET_DIAMETER / 2 &&
-      Math.abs(ball.pos.y - TABLE.height) < BALL_RADIUS * 2;
+    const hit = impact.current.sequence !== lastImpact.current &&
+      Math.hypot(impact.current.x - x.current, impact.current.z - TARGET_Z) <= TARGET_DIAMETER / 2 + BALL_RADIUS;
+    if (impact.current.sequence !== lastImpact.current) lastImpact.current = impact.current.sequence;
 
-    if (hit && !wasHit.current) {
+    if (hit) {
       effect.current = 1;
       confettiAge.current = 0;
       playCelebration();
     }
-    wasHit.current = hit;
     effect.current = Math.max(0, effect.current - dt * 1.15);
     confettiAge.current += dt;
 

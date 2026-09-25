@@ -18,4 +18,5 @@
 - [x] Detailliertes Netzmodell durch eine transparente Texturfläche ersetzen; Netztreffer-Rückmeldung und Ballphysik erhalten.
 - [x] Netzmaschen schwarz, Netz auf Tischbreite, weißes Oberband und schwarze senkrechte Befestigungen an beiden Enden.
 - [x] Netzfarbe bleibt bei Fehlschlägen schwarz; rote Umrandung und Basketball-Hallenmarkierungen auf dem Boden.
+- [x] Hallenlinien blasser und nur in der Hauptansicht sichtbar; Review-Fenster deckend; Außenringe des Targets lösen Treffer-Effekte aus.
 - [ ] Test auf der Quest 3 (braucht das Headset).

@@ -23,7 +23,7 @@ import { BallModel } from "./BallModel";
 import { RacketModel } from "./RacketModel";
 import { Table } from "./Table";
 import { SpinOverlay, makeSnapshot, CLIP_BEFORE, CLIP_AFTER, type ContactSnapshot, type ClipFrame } from "./SpinOverlay";
-import { Target } from "./Target";
+import { Target, type TargetImpact } from "./Target";
 import { GymRoom } from "./GymRoom";
 import { Label } from "./Label";
 import { useState } from "react";
@@ -93,6 +93,7 @@ export function Simulation() {
   const ballGroup = useRef<THREE.Group>(null);
   const racketGroup = useRef<THREE.Group>(null);
   const snap = useRef<ContactSnapshot>(makeSnapshot());
+  const targetImpact = useRef<TargetImpact>({ x: 0, z: 0, sequence: 0 });
   // Für die Vorschau: stärker geglättete Schlägerbewegung, damit die Kurve nicht zappelt
   const previewRacket = useMemo<RacketState>(
     () => ({ ...racket, vel: new THREE.Vector3(), angVel: new THREE.Vector3(), handVel: previewHand }),
@@ -321,7 +322,12 @@ export function Simulation() {
         } else if (!s.done && (ball.pos.z > CONTACT_Z + 0.6 || ev === "floor")) finish("miss");
       } else if (!s.done) {
         if (ev === "net") finish("net");
-        else if (ev === "table-far") finish("success");
+        else if (ev === "table-far") {
+          targetImpact.current.x = ball.pos.x;
+          targetImpact.current.z = ball.pos.z;
+          targetImpact.current.sequence++;
+          finish("success");
+        }
         else if (ev === "table-near") finish("own");
         else if (ev === "floor" || ball.pos.z < -TABLE.length / 2 - 0.3 || ball.pos.z > 3) finish("out");
       }
@@ -403,7 +409,7 @@ export function Simulation() {
         <BallSpinLabel ball={ball} />
       </group>
       <primitive object={previewMesh} />
-      <Target ball={ball} enabled={() => sim.current.hit} />
+      <Target impact={targetImpact} />
       <Menus />
       <SpinOverlay ball={ball} racket={racket} snap={snap} ballObj={ballGroup} racketObj={racketGroup} getScale={() => sim.current.scale} />
     </>

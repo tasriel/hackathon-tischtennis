@@ -466,6 +466,9 @@ export function SpinOverlay({
     gl.setClearColor(PANEL_BG, 1);
     gl.clear();
     const restorePointers = replay ? hideXRPointerVisuals(scene) : () => {};
+    const courtLines = scene.getObjectByName("court-floor-lines");
+    const courtLinesWereVisible = courtLines?.visible;
+    if (replay && courtLines) courtLines.visible = false;
     const liveBallWasVisible = bo?.visible;
     if (replay && bo) bo.visible = false;
     if (reviewBall.current) reviewBall.current.visible = replay;
@@ -474,6 +477,7 @@ export function SpinOverlay({
     } finally {
       if (bo && liveBallWasVisible !== undefined) bo.visible = liveBallWasVisible;
       if (reviewBall.current) reviewBall.current.visible = false;
+      if (courtLines && courtLinesWereVisible !== undefined) courtLines.visible = courtLinesWereVisible;
       restorePointers();
       gl.setRenderTarget(prev);
       gl.xr.enabled = xrOn;
@@ -542,7 +546,7 @@ export function SpinOverlay({
       </mesh>
       <mesh ref={panel} renderOrder={20} onUpdate={(m) => m.layers.set(PANEL_LAYER)}>
         <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial map={fbo.texture} toneMapped={false} depthTest={false} />
+        <meshBasicMaterial map={fbo.texture} toneMapped={false} transparent={false} depthTest={false} depthWrite />
       </mesh>
     </>
   );
