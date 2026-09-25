@@ -29,7 +29,7 @@ export function predictReturn(
     } else {
       if (i % 6 === 0) out[n++].copy(b.pos);
       if (e === "net" || e === "floor" || e === "table-far" || e === "table-near") {
-        out[n++ < maxPoints ? n - 1 : maxPoints - 1].copy(b.pos);
+        if (n < maxPoints) out[n++].copy(b.pos);
         break;
       }
     }

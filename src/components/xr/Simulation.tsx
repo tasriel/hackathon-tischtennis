@@ -186,7 +186,7 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
         racket.pos.lerp(_tmp, 1 - Math.exp(-25 * dt));
       }
       // Blattnormale zeigt Richtung Gegner (-z), gekippt um desktopTilt nach oben
-      racket.quat.setFromEuler(new THREE.Euler(s.desktopTilt, Math.PI / 2, 0, "YXZ"));
+      racket.quat.setFromEuler(new THREE.Euler(0, Math.PI / 2, s.desktopTilt, "YXZ"));
     }
     racket.normal.set(1, 0, 0).applyQuaternion(racket.quat);
     // geglättete Schlägergeschwindigkeit (Echtzeit)
@@ -277,7 +277,6 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
     // Automatischer Neustart nach 4 s
     if (s.done && performance.now() - s.doneAt > 4000) restart();
 
-    if (steps > 0 && s.predictTick % 10 === 0) onHud({ result: null, hint, info, timeScale: scale });
   });
 
   return (
