@@ -52,9 +52,10 @@ export function Target({ ball, enabled }: { ball: BallState; enabled: () => bool
 
   const group = useRef<THREE.Group>(null);
   const scale = TARGET_DIAMETER / 1.90243;
+  const thicknessScale = TARGET_THICKNESS / 0.200291;
   return (
     <group ref={group} rotation={[-Math.PI / 2, 0, 0]}>
-      <SceneModel url={targetAsset.url} scale={scale} />
+      <SceneModel url={targetAsset.url} scale={[scale, scale, thicknessScale]} />
     </group>
   );
 }

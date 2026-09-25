@@ -12,8 +12,8 @@ export function RacketModel() {
   return (
     <SceneModel
       url={racketAsset.url}
-      position={[0, 0, 0.057]}
-      rotation={[-Math.PI / 2, 0, Math.PI / 2]}
+      position={[0, 0, 0.063]}
+      rotation={[-Math.PI / 2, Math.PI / 2, 0]}
       scale={0.158}
     />
   );
