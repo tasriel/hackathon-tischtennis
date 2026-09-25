@@ -29,8 +29,8 @@ export function XRScene() {
       <div className="pointer-events-none fixed inset-x-0 top-0 flex flex-col items-center gap-2 p-4">
         <h1 className="text-lg font-semibold text-foreground">Unterschnitt zurückspielen</h1>
         <p className="max-w-xl text-center text-sm text-muted-foreground">
-          In VR: Schläger in der rechten Hand, Trigger = Neustart. Am Desktop: Maus bewegt den Schläger,
-          Mausrad oder W/S neigt ihn, Leertaste = Neustart.
+          In VR: Schläger rechts, rechter Trigger = nächster Ball, Menüs mit dem linken Controller. Am Desktop: Maus bewegt den Schläger,
+          Mausrad oder W/S neigt ihn, Leertaste = nächster Ball, 1/2/3 = Einspielen, J/K/L = Ziel.
         </p>
       </div>
 
