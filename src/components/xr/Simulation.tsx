@@ -7,20 +7,22 @@ import {
   collideRacket,
   makeBall,
   lastContact,
+  MAX_WRIST,
   resetServe,
-  slowmoBoost,
   spinType,
   stepBall,
   type RacketState,
 } from "@/lib/physics";
 import { timeScaleFor } from "@/lib/timescale";
 import { predictReturn } from "@/lib/trajectory";
+import { findIdealShot } from "@/lib/idealShot";
 import { coach, describe, type ShotMetrics, type ShotResult } from "@/lib/coaching";
 import { BallModel } from "./BallModel";
 import { RacketModel } from "./RacketModel";
 import { Table } from "./Table";
 import { Label } from "./Label";
-import { SpinOverlay, type ContactSnapshot } from "./SpinOverlay";
+import { SpinOverlay, makeSnapshot, type ContactSnapshot } from "./SpinOverlay";
+import { CupPyramid } from "./CupPyramid";
 
 export type HudState = { result: ShotResult | null; hint: string; info: string; timeScale: number };
 
@@ -35,16 +37,19 @@ const GRIP_ROT = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.5, 0, 0)
 
 export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
   const ball = useMemo(() => makeBall(), []);
+  const handVel = useMemo(() => new THREE.Vector3(), []);
+  const previewHand = useMemo(() => new THREE.Vector3(), []);
   const racket = useMemo<RacketState>(
     () => ({
       pos: new THREE.Vector3(0.25, 0.95, CONTACT_Z),
       normal: new THREE.Vector3(0, 0, -1),
       vel: new THREE.Vector3(),
       angVel: new THREE.Vector3(),
+      handVel,
       quat: new THREE.Quaternion(),
       timeScale: 1,
     }),
-    [],
+    [handVel],
   );
   const sim = useRef({
     hit: false,
@@ -66,18 +71,11 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
   const ballGroup = useRef<THREE.Group>(null);
   const axisRef = useRef<THREE.Mesh>(null);
   const racketGroup = useRef<THREE.Group>(null);
-  const snap = useRef<ContactSnapshot>({
-    active: false,
-    point: new THREE.Vector3(),
-    friction: new THREE.Vector3(),
-    spinBefore: new THREE.Vector3(),
-    spinAfter: new THREE.Vector3(),
-    explain: "",
-  });
+  const snap = useRef<ContactSnapshot>(makeSnapshot());
   // Für die Vorschau: stärker geglättete Schlägerbewegung, damit die Kurve nicht zappelt
   const previewRacket = useMemo<RacketState>(
-    () => ({ ...racket, vel: new THREE.Vector3(), angVel: new THREE.Vector3() }),
-    [racket],
+    () => ({ ...racket, vel: new THREE.Vector3(), angVel: new THREE.Vector3(), handVel: previewHand }),
+    [racket, previewHand],
   );
   const tableMats = useRef<{ far: THREE.MeshStandardMaterial | null; net: THREE.MeshStandardMaterial | null }>({
     far: null,
@@ -105,10 +103,11 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
 
   const restart = () => {
     resetServe(ball);
+    _prevPos.copy(ball.pos);
     const s = sim.current;
     s.hit = false;
     s.done = false;
-    snap.current.active = false;
+    s.acc = 0;
     s.metrics = null;
     s.flashTarget = "none";
     s.lastSpin = "";
