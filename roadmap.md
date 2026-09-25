@@ -10,4 +10,5 @@
 - [x] Turnhallenraum mit grauem Boden, Stoffwänden, Balken und Lichtern.
 - [x] Ballfeedback außerhalb des Reviewfensters entfernt; Reviewfenster größer und mit pulsierendem Rahmen.
 - [x] Neue Qualitätsmodelle für Tisch, Schläger, Ziel und Netz einsetzen; Schlägerachse und Netzkante prüfen.
+- [x] Halle wieder aufhellen (hellgrüner Boden, dunkler grüner Wandsockel); im Replay Controller-Zeiger ausblenden und rote/grüne Schlagspuren verbreitern.
 - [ ] Test auf der Quest 3 (braucht das Headset).
