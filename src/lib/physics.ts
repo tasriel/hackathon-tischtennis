@@ -22,9 +22,17 @@ export type BallState = {
 export type RacketState = {
   pos: THREE.Vector3; // Mitte des Blatts
   normal: THREE.Vector3; // Blattnormale (Welt)
-  vel: THREE.Vector3; // Geschwindigkeit des Blatts
+  vel: THREE.Vector3; // Geschwindigkeit der Blattmitte (Echtzeit, m/s)
+  angVel: THREE.Vector3; // Winkelgeschwindigkeit des Blatts (Echtzeit, rad/s)
   quat: THREE.Quaternion;
+  /** aktueller Zeitlupenfaktor: Echtzeit-Bewegung wird in Simulationszeit umgerechnet */
+  timeScale: number;
 };
+
+/** max. Schlägergeschwindigkeit am Kontaktpunkt in Simulationszeit (m/s) */
+const MAX_RACKET_SPEED = 14;
+const _rv = new THREE.Vector3();
+const _arm = new THREE.Vector3();
 
 export type TableEvent = "table-near" | "table-far" | "net" | "floor" | null;
 
@@ -127,7 +135,12 @@ export function collideRacket(b: BallState, prevPos: THREE.Vector3, r: RacketSta
 
   // Normale zeigt zur Seite, von der der Ball kam
   if (d0 < 0) _n.negate();
-  _rel.subVectors(b.vel, r.vel);
+  // Geschwindigkeit des Schlägers am tatsächlichen Kontaktpunkt (inkl. Drehung),
+  // umgerechnet von Echtzeit in Simulationszeit (Zeitlupe!)
+  _arm.subVectors(b.pos, r.pos).addScaledVector(_n, -_off.subVectors(b.pos, r.pos).dot(_n));
+  _rv.crossVectors(r.angVel, _arm).add(r.vel).divideScalar(Math.max(r.timeScale, 0.05));
+  if (_rv.length() > MAX_RACKET_SPEED) _rv.setLength(MAX_RACKET_SPEED);
+  _rel.subVectors(b.vel, _rv);
   const vn = _rel.dot(_n);
   if (vn >= 0) return false; // bewegt sich schon weg
 
@@ -137,7 +150,7 @@ export function collideRacket(b: BallState, prevPos: THREE.Vector3, r: RacketSta
   _vc.crossVectors(b.spin, _r).add(relT);
   _dv.copy(_vc).multiplyScalar(-RACKET_GRIP);
 
-  b.vel.copy(r.vel).addScaledVector(_n, -vn * RACKET_RESTITUTION).add(relT).add(_dv);
+  b.vel.copy(_rv).addScaledVector(_n, -vn * RACKET_RESTITUTION).add(relT).add(_dv);
   _t.crossVectors(_r, _dv).multiplyScalar(3 / (2 * BALL_RADIUS * BALL_RADIUS));
   b.spin.add(_t);
 

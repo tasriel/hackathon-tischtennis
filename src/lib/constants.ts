@@ -16,7 +16,7 @@ export const TABLE_FRICTION = 0.18; // Coulomb-Reibwert Ball–Tisch
 // Schläger (glatter Belag)
 export const RACKET_RADIUS = 0.085; // Trefferzone der Blattfläche
 export const RACKET_RESTITUTION = 0.8;
-export const RACKET_GRIP = 0.55; // wie stark der Belag den Ball "greift"
+export const RACKET_GRIP = 0.4; // Reibung Belag–Ball (tangential)
 export const ARM_REACH = 0.75; // max. Abstand Schulter → Schläger
 
 // Spieler steht hinter dem Tischende (z positiv), Blick Richtung -z

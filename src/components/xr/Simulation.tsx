@@ -37,7 +37,9 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
       pos: new THREE.Vector3(0.25, 0.95, CONTACT_Z),
       normal: new THREE.Vector3(0, 0, -1),
       vel: new THREE.Vector3(),
+      angVel: new THREE.Vector3(),
       quat: new THREE.Quaternion(),
+      timeScale: 1,
     }),
     [],
   );
@@ -151,6 +153,7 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
   const _tmp = useMemo(() => new THREE.Vector3(), []);
   const _q = useMemo(() => new THREE.Quaternion(), []);
   const _lastRacket = useMemo(() => new THREE.Vector3(), []);
+  const _lastQuat = useMemo(() => new THREE.Quaternion(), []);
   const _shoulder = useMemo(() => new THREE.Vector3(), []);
   const _ray = useMemo(() => new THREE.Raycaster(), []);
   const _plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 0, 1), -CONTACT_Z), []);
@@ -163,6 +166,7 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
 
     // ---------- Schlägerpose ----------
     _lastRacket.copy(racket.pos);
+    _lastQuat.copy(racket.quat);
     const obj = controller?.object;
     if (isXR && obj) {
       obj.getWorldPosition(racket.pos);
@@ -191,7 +195,15 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
     racket.normal.set(1, 0, 0).applyQuaternion(racket.quat);
     // geglättete Schlägergeschwindigkeit (Echtzeit)
     _tmp.subVectors(racket.pos, _lastRacket).divideScalar(Math.max(dt, 1e-3));
-    racket.vel.lerp(_tmp, 1 - Math.exp(-30 * dt));
+    racket.vel.lerp(_tmp, 1 - Math.exp(-80 * dt));
+    // Winkelgeschwindigkeit aus Orientierungsänderung
+    _q.copy(racket.quat).multiply(_lastQuat.invert());
+    if (_q.w < 0) _q.set(-_q.x, -_q.y, -_q.z, -_q.w);
+    const ang = 2 * Math.acos(Math.min(1, _q.w));
+    const sinH = Math.sqrt(Math.max(0, 1 - _q.w * _q.w));
+    if (sinH > 1e-5) _tmp.set(_q.x, _q.y, _q.z).divideScalar(sinH).multiplyScalar(ang / Math.max(dt, 1e-3));
+    else _tmp.set(0, 0, 0);
+    racket.angVel.lerp(_tmp, 1 - Math.exp(-80 * dt));
     if (racketGroup.current) {
       racketGroup.current.position.copy(racket.pos);
       racketGroup.current.quaternion.copy(racket.quat);
@@ -199,6 +211,7 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
 
     // ---------- Simulation ----------
     const scale = s.done ? 1 : timeScaleFor(ball.pos.z, s.hit);
+    racket.timeScale = scale;
     s.acc += dt * scale;
     let steps = 0;
     while (s.acc >= PHYS_DT && steps < 40) {
@@ -215,8 +228,8 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
             incomingSpin: s.incoming,
             outgoingSpin: spinType(ball),
             openDeg: THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(toFar.y, -1, 1))),
-            upSpeed: racket.vel.y,
-            forwardSpeed: -racket.vel.z,
+            upSpeed: racket.vel.y / Math.max(scale, 0.05),
+            forwardSpeed: -racket.vel.z / Math.max(scale, 0.05),
             result: "miss",
           };
         } else if (!s.done && (ball.pos.z > CONTACT_Z + 0.6 || ev === "floor")) finish("miss");
