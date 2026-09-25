@@ -25,8 +25,8 @@ export const CONTACT_Z = 1.55; // erwartete Treffzone
 
 // Aufschlag: mäßiger Unterschnitt, kommt frontal
 export const SERVE = {
-  pos: [0.25, TABLE.height + 0.25, -1.5] as const,
-  vel: [0.0, 1.1, 4.3] as const,
+  pos: [0.25, TABLE.height + 0.3, -1.5] as const,
+  vel: [0.0, 2.0, 5.0] as const,
   spin: [-45, 0, 0] as const, // rad/s, x<0 = Backspin bei Flug Richtung +z
 };
 
