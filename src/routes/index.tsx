@@ -35,7 +35,7 @@ function Index() {
 
   return (
     <div className="fixed inset-0 bg-background">
-      <Canvas camera={{ position: [0, 1.45, 0.45], fov: 60 }} onCreated={({ camera }) => camera.lookAt(0, 0.85, -1.6)}>
+      <Canvas camera={{ position: [0, 1.5, 0.9], fov: 55 }} onCreated={({ camera }) => camera.lookAt(0, 0.85, -1.6)}>
         <XR store={store}>
           <XRScene />
         </XR>

@@ -16,7 +16,7 @@ export interface ContactSnapshot {
   outColor: string;
 }
 
-const SCALE = 4;
+const SCALE = 3;
 const Y = new THREE.Vector3(0, 1, 0);
 
 function Arrow({ dir, color, len }: { dir: THREE.Vector3; color: string; len: number }) {
@@ -52,7 +52,7 @@ export function ContactInspection({ snap }: { snap: ContactSnapshot }) {
   });
   const bo = snap.ballOffset.clone().multiplyScalar(SCALE);
   return (
-    <group position={[0.75, 1.3, -1.0]} rotation={[0, -0.5, 0]}>
+    <group position={[0.9, 1.3, -1.4]} rotation={[0, -0.6, 0]}>
       <group scale={SCALE}>
         <group quaternion={snap.racketQuat}>
           <RacketModel />
