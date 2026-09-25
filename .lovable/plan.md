@@ -28,6 +28,14 @@ Ursachen im Code: Vorschau springt, weil sie alle 3 Frames mit der gerade verwac
 - Für die Vorschau eine stärker geglättete Schlägerbewegung verwenden, damit die Kurve nicht zappelt; Übergänge zwischen Neuberechnungen weich überblenden.
 - Linie als Röhre statt gestrichelte Linie (besser sichtbar in VR).
 
+## 4. Physik auf die Quest 3 abstimmen (Arm und Schwung)
+- Realistische Werte: Ein Schupf läuft mit ca. 1–3 m/s Schlägergeschwindigkeit, ein Topspin mit 5–10 m/s. Handgelenk-Drehung bis ca. 10–15 rad/s. Reichweite Schulter → Blatt ca. 0,6–0,8 m.
+- Die Quest-3-Controller erfassen Bewegungen gut, aber schnelle Schwünge werden je Frame (72–90 Hz) etwas ungenau. Lösung: Schlägergeschwindigkeit über die letzten 3–4 Frames mitteln, statt nur zwei Frames zu vergleichen.
+- Zeitlupe: Der Spieler bewegt sich in echter Zeit, der Ball langsam. Die Umrechnung wird so gedeckelt, dass ein normaler Schupf (1–3 m/s echt) auch in der Zeitlupe als Schupf wirkt und kein Schlag unrealistisch stark wird. Grenze pro Schlagart statt fester 14 m/s (Schupf-Bereich um 3–4 m/s).
+- Armreichweite: Treffpunkt und Aufschlag so legen, dass der Ball bequem in Reichweite vor der rechten Körperseite ankommt (ca. 30–50 cm vor dem Körper, auf Hüft- bis Brusthöhe), ohne Laufen.
+- Die Schlägerposition in der Hand (Griff-Versatz, Winkel) an die Quest-3-Controller anpassen, damit sich der Winkel natürlich anfühlt.
+- Im Overlay wird die gemessene Schwunggeschwindigkeit angezeigt ("2,1 m/s – passend für Schupf"), damit man ein Gefühl dafür bekommt.
+
 ## Nicht jetzt
 Andere Spin-Arten als Eingang, Gegner, Punkte, Menüs.
 
