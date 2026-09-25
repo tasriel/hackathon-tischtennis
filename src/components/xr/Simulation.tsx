@@ -45,7 +45,7 @@ function BallSpinLabel({ ball }: { ball: ReturnType<typeof makeBall> }) {
     if (next !== k) setK(next);
   });
   const d = SPIN_DE[k];
-  return <Label text={d?.t ?? ""} color={d?.c} bg="rgba(10,10,14,0.7)" height={0.045} position={[0, 0.07, 0]} />;
+  return <Label text={d?.t ?? ""} color={d?.c ?? "#ffffff"} bg="rgba(10,10,14,0.7)" height={0.045} position={[0, 0.07, 0]} />;
 }
 
 const PHYS_DT = 1 / 240;
