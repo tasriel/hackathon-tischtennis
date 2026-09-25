@@ -30,7 +30,26 @@ export type RacketState = {
 };
 
 /** max. Schlägergeschwindigkeit am Kontaktpunkt in Simulationszeit (m/s) */
-const MAX_RACKET_SPEED = 14;
+const MAX_RACKET_SPEED = 8;
+/** Zeitlupen-Umrechnung ist gedeckelt: echte Armbewegung wirkt höchstens 3× stärker. */
+const MAX_SLOWMO_BOOST = 3;
+
+/** Momentaufnahme des letzten Schlägerkontakts (fürs Overlay). */
+export const lastContact = {
+  point: new THREE.Vector3(),
+  normal: new THREE.Vector3(),
+  friction: new THREE.Vector3(), // Reibungs-Geschwindigkeitsänderung am Ball
+  spinBefore: new THREE.Vector3(),
+  spinAfter: new THREE.Vector3(),
+  velBefore: new THREE.Vector3(),
+  velAfter: new THREE.Vector3(),
+  racketVel: new THREE.Vector3(), // wirksame Schlägergeschwindigkeit (Simulationszeit)
+};
+
+/** Umrechnungsfaktor Echtzeit-Armbewegung → Simulationszeit. */
+export function slowmoBoost(timeScale: number) {
+  return Math.min(1 / Math.max(timeScale, 0.05), MAX_SLOWMO_BOOST);
+}
 const _rv = new THREE.Vector3();
 const _arm = new THREE.Vector3();
 
@@ -138,12 +157,14 @@ export function collideRacket(b: BallState, prevPos: THREE.Vector3, r: RacketSta
   // Geschwindigkeit des Schlägers am tatsächlichen Kontaktpunkt (inkl. Drehung),
   // umgerechnet von Echtzeit in Simulationszeit (Zeitlupe!)
   _arm.subVectors(b.pos, r.pos).addScaledVector(_n, -_off.subVectors(b.pos, r.pos).dot(_n));
-  _rv.crossVectors(r.angVel, _arm).add(r.vel).divideScalar(Math.max(r.timeScale, 0.05));
+  _rv.crossVectors(r.angVel, _arm).add(r.vel).multiplyScalar(slowmoBoost(r.timeScale));
   if (_rv.length() > MAX_RACKET_SPEED) _rv.setLength(MAX_RACKET_SPEED);
   _rel.subVectors(b.vel, _rv);
   const vn = _rel.dot(_n);
   if (vn >= 0) return false; // bewegt sich schon weg
 
+  lastContact.spinBefore.copy(b.spin);
+  lastContact.velBefore.copy(b.vel);
   const relT = _vt.copy(_rel).addScaledVector(_n, -vn);
   // Kontaktpunktgeschwindigkeit inkl. Spin
   _r.copy(_n).multiplyScalar(-BALL_RADIUS);
@@ -158,7 +179,13 @@ export function collideRacket(b: BallState, prevPos: THREE.Vector3, r: RacketSta
   if (b.vel.length() > 18) b.vel.setLength(18);
   if (b.spin.length() > 180) b.spin.setLength(180);
 
+  lastContact.normal.copy(_n);
+  lastContact.friction.copy(_dv);
+  lastContact.spinAfter.copy(b.spin);
+  lastContact.velAfter.copy(b.vel);
+  lastContact.racketVel.copy(_rv);
   b.pos.copy(r.pos).add(_off.subVectors(b.pos, r.pos).addScaledVector(_n, -_off.dot(_n)));
+  lastContact.point.copy(b.pos);
   b.pos.addScaledVector(_n, BALL_RADIUS * 1.2);
   return true;
 }

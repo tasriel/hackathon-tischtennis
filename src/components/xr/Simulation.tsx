@@ -6,7 +6,9 @@ import { ARM_REACH, BALL_RADIUS, CONTACT_Z, TABLE } from "@/lib/constants";
 import {
   collideRacket,
   makeBall,
+  lastContact,
   resetServe,
+  slowmoBoost,
   spinType,
   stepBall,
   type RacketState,
@@ -18,6 +20,7 @@ import { BallModel } from "./BallModel";
 import { RacketModel } from "./RacketModel";
 import { Table } from "./Table";
 import { Label } from "./Label";
+import { SpinOverlay, type ContactSnapshot } from "./SpinOverlay";
 
 export type HudState = { result: ShotResult | null; hint: string; info: string; timeScale: number };
 
@@ -45,6 +48,8 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
   );
   const sim = useRef({
     hit: false,
+    hitAt: 0,
+    scale: 1,
     done: false,
     doneAt: 0,
     acc: 0,
@@ -61,6 +66,19 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
   const ballGroup = useRef<THREE.Group>(null);
   const axisRef = useRef<THREE.Mesh>(null);
   const racketGroup = useRef<THREE.Group>(null);
+  const snap = useRef<ContactSnapshot>({
+    active: false,
+    point: new THREE.Vector3(),
+    friction: new THREE.Vector3(),
+    spinBefore: new THREE.Vector3(),
+    spinAfter: new THREE.Vector3(),
+    explain: "",
+  });
+  // Für die Vorschau: stärker geglättete Schlägerbewegung, damit die Kurve nicht zappelt
+  const previewRacket = useMemo<RacketState>(
+    () => ({ ...racket, vel: new THREE.Vector3(), angVel: new THREE.Vector3() }),
+    [racket],
+  );
   const tableMats = useRef<{ far: THREE.MeshStandardMaterial | null; net: THREE.MeshStandardMaterial | null }>({
     far: null,
     net: null,
@@ -73,27 +91,24 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
   const controller = useXRInputSourceState("controller", "right");
   const { camera, gl } = useThree();
 
-  // Vorschau-Linie
-  const previewPts = useMemo(() => Array.from({ length: 40 }, () => new THREE.Vector3()), []);
-  const previewLine = useMemo(() => {
-    const geo = new THREE.BufferGeometry().setFromPoints(previewPts);
-    const mat = new THREE.LineDashedMaterial({
-      color: "#ffe066",
-      transparent: true,
-      opacity: 0.55,
-      dashSize: 0.03,
-      gapSize: 0.02,
-    });
-    const line = new THREE.Line(geo, mat);
-    line.frustumCulled = false;
-    return line;
-  }, [previewPts]);
+  // Vorschau-Kurve (Röhre aus geglätteter Spline)
+  const previewPts = useMemo(() => Array.from({ length: 120 }, () => new THREE.Vector3()), []);
+  const previewMesh = useMemo(() => {
+    const m = new THREE.Mesh(
+      new THREE.BufferGeometry(),
+      new THREE.MeshBasicMaterial({ color: "#ffe066", transparent: true, opacity: 0.6 }),
+    );
+    m.frustumCulled = false;
+    return m;
+  }, []);
+  const previewAlpha = useRef(0);
 
   const restart = () => {
     resetServe(ball);
     const s = sim.current;
     s.hit = false;
     s.done = false;
+    snap.current.active = false;
     s.metrics = null;
     s.flashTarget = "none";
     s.lastSpin = "";
@@ -195,7 +210,8 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
     racket.normal.set(1, 0, 0).applyQuaternion(racket.quat);
     // geglättete Schlägergeschwindigkeit (Echtzeit)
     _tmp.subVectors(racket.pos, _lastRacket).divideScalar(Math.max(dt, 1e-3));
-    racket.vel.lerp(_tmp, 1 - Math.exp(-80 * dt));
+    // ~3–4 Frames Mittelung (Quest-Tracking bei 72–90 Hz ist pro Frame verrauscht)
+    racket.vel.lerp(_tmp, 1 - Math.exp(-30 * dt));
     // Winkelgeschwindigkeit aus Orientierungsänderung
     _q.copy(racket.quat).multiply(_lastQuat.invert());
     if (_q.w < 0) _q.set(-_q.x, -_q.y, -_q.z, -_q.w);
@@ -203,14 +219,18 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
     const sinH = Math.sqrt(Math.max(0, 1 - _q.w * _q.w));
     if (sinH > 1e-5) _tmp.set(_q.x, _q.y, _q.z).divideScalar(sinH).multiplyScalar(ang / Math.max(dt, 1e-3));
     else _tmp.set(0, 0, 0);
-    racket.angVel.lerp(_tmp, 1 - Math.exp(-80 * dt));
+    racket.angVel.lerp(_tmp, 1 - Math.exp(-30 * dt));
+    previewRacket.vel.lerp(racket.vel, 1 - Math.exp(-6 * dt));
+    previewRacket.angVel.lerp(racket.angVel, 1 - Math.exp(-6 * dt));
     if (racketGroup.current) {
       racketGroup.current.position.copy(racket.pos);
       racketGroup.current.quaternion.copy(racket.quat);
     }
 
     // ---------- Simulation ----------
-    const scale = s.done ? 1 : timeScaleFor(ball.pos.z, s.hit);
+    const sinceHit = (performance.now() - s.hitAt) / 1000;
+    const scale = s.done && !s.hit ? 1 : timeScaleFor(ball.pos.z, s.hit, sinceHit);
+    s.scale = scale;
     racket.timeScale = scale;
     s.acc += dt * scale;
     let steps = 0;
@@ -222,16 +242,25 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
       if (!s.hit) {
         if (!s.done && collideRacket(ball, _prevPos, racket)) {
           s.hit = true;
+          s.hitAt = performance.now();
           const toFar = _tmp.copy(racket.normal);
           if (toFar.z > 0) toFar.negate();
+          const boost = slowmoBoost(scale);
           s.metrics = {
             incomingSpin: s.incoming,
             outgoingSpin: spinType(ball),
             openDeg: THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(toFar.y, -1, 1))),
-            upSpeed: racket.vel.y / Math.max(scale, 0.05),
-            forwardSpeed: -racket.vel.z / Math.max(scale, 0.05),
+            upSpeed: racket.vel.y * boost,
+            forwardSpeed: -racket.vel.z * boost,
             result: "miss",
           };
+          const sn = snap.current;
+          sn.active = true;
+          sn.point.copy(lastContact.point);
+          sn.friction.copy(lastContact.friction);
+          sn.spinBefore.copy(lastContact.spinBefore);
+          sn.spinAfter.copy(lastContact.spinAfter);
+          sn.explain = explainContact(s.metrics);
         } else if (!s.done && (ball.pos.z > CONTACT_Z + 0.6 || ev === "floor")) finish("miss");
       } else if (!s.done) {
         if (ev === "net") finish("net");
@@ -264,16 +293,22 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
 
     // ---------- Vorschau ----------
     const showPreview = !s.hit && !s.done && scale < 0.85;
-    previewLine.visible = false;
     if (showPreview && ++s.predictTick % 3 === 0) {
-      const n = predictReturn(ball, racket, previewPts);
-      if (n > 1) {
-        previewLine.geometry.setFromPoints(previewPts.slice(0, n));
-        previewLine.computeLineDistances();
+      previewRacket.pos.copy(racket.pos);
+      previewRacket.normal.copy(racket.normal);
+      previewRacket.timeScale = scale;
+      const n = predictReturn(ball, previewRacket, previewPts);
+      previewMesh.userData["n"] = n;
+      if (n > 3) {
+        const curve = new THREE.CatmullRomCurve3(previewPts.slice(0, n), false, "centripetal");
+        previewMesh.geometry.dispose();
+        previewMesh.geometry = new THREE.TubeGeometry(curve, Math.min(n * 2, 160), 0.004, 6, false);
       }
-      previewLine.userData["n"] = n;
     }
-    previewLine.visible = showPreview && (previewLine.userData["n"] ?? 0) > 1;
+    const want = showPreview && (previewMesh.userData["n"] ?? 0) > 3 ? 1 : 0;
+    previewAlpha.current += (want - previewAlpha.current) * (1 - Math.exp(-10 * dt));
+    (previewMesh.material as THREE.MeshBasicMaterial).opacity = 0.6 * previewAlpha.current;
+    previewMesh.visible = previewAlpha.current > 0.02;
 
     // ---------- Feedback ----------
     const target = s.flashTarget;
@@ -308,7 +343,8 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
         </mesh>
         <Label text={spinLabel} position={[0, 0.06, 0]} height={0.035} />
       </group>
-      <primitive object={previewLine} />
+      <primitive object={previewMesh} />
+      <SpinOverlay ball={ball} racket={racket} snap={snap} getScale={() => sim.current.scale} />
       <Label text={hint} position={[0, TABLE.height + 0.55, -0.4]} height={0.08} />
       <Label text={info} position={[0, TABLE.height + 0.44, -0.4]} height={0.05} color="#cfd8e3" />
     </>
@@ -316,3 +352,17 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
 }
 
 const _c = new THREE.Color();
+
+/** Kurze Erklärung, warum der Ball so zurückkommt (Kontakt-Moment im Overlay). */
+function explainContact(m: ShotMetrics): string {
+  const blade = m.openDeg > 25 ? "Blatt offen" : m.openDeg < 0 ? "Blatt geschlossen" : "Blatt fast senkrecht";
+  const move =
+    m.upSpeed > 1 ? "Bewegung nach oben" : m.forwardSpeed > 0.8 ? "Bewegung nach vorn" : "kaum Bewegung";
+  const res =
+    m.outgoingSpin === "BACKSPIN"
+      ? "Belag reibt unten am Ball → Unterschnitt"
+      : m.outgoingSpin === "TOPSPIN"
+        ? "Belag reibt oben am Ball → Topspin"
+        : "Reibung hebt den Spin auf";
+  return `${blade} · ${move} → ${res}`;
+}
