@@ -66,12 +66,17 @@ export function makeSnapshot(): ContactSnapshot {
   };
 }
 
-const SPIN_COLORS = { BACKSPIN: "#2f7de1", TOPSPIN: "#f08a24", "OHNE SPIN": "#9aa3ad" } as const;
-const USER = "#eef1f5";
+const SPIN_COLORS = { BACKSPIN: "#70a5ff", TOPSPIN: "#f3a14a", "OHNE SPIN": "#9aa3ad" } as const;
+const USER = "#f8fafc";
 const IDEAL = "#2ee66b";
 const OK = "#9ff0b4";
-const NEAR = "#ffe066";
-const FAR = "#ff8a80";
+const NEAR = "#e6d36a";
+const FAR = "#ff9b93";
+const PANEL_BG = "#050914";
+const PANEL_INSET = "#0b1530";
+const VIOLET = "#7c3aed";
+const VIOLET_SOFT = "#c4b5fd";
+const TEXT_MUTED = "#cbd5e1";
 const Z = new THREE.Vector3(0, 0, 1);
 const Y = new THREE.Vector3(0, 1, 0);
 const X = new THREE.Vector3(1, 0, 0);
@@ -165,7 +170,7 @@ function advice(s: ContactSnapshot): string {
   return parts.length ? parts.join(" · ") : "Fast perfekt – genau so wiederholen!";
 }
 
-type Texts = { title: string; angle: string; angleC: string; speed: string; speedC: string; dir: string; dirC: string; advice: string };
+type Texts = { title: string; angle: string; angleC: string; speed: string; speedC: string; dir: string; dirC: string; advice: string; state: string };
 
 /** Frame der Aufzeichnung zur Zeit t interpolieren. */
 function sampleClip(clip: ClipFrame[], t: number, pos: THREE.Vector3, quat: THREE.Quaternion, ball: THREE.Vector3) {
@@ -199,14 +204,14 @@ export function SpinOverlay({
   const isXR = useXR((s) => s.session != null);
 
   const fbo = useMemo(() => {
-    const t = new THREE.WebGLRenderTarget(800, 600, { samples: 4 });
+    const t = new THREE.WebGLRenderTarget(1120, 630, { samples: 4 });
     t.texture.colorSpace = THREE.SRGBColorSpace;
     return t;
   }, []);
   useEffect(() => () => fbo.dispose(), [fbo]);
 
   const cam = useMemo(() => {
-    const c = new THREE.PerspectiveCamera(32, 4 / 3, 0.2, 6);
+    const c = new THREE.PerspectiveCamera(30, 16 / 9, 0.2, 6);
     c.layers.enable(OVERLAY_LAYER);
     return c;
   }, []);
@@ -229,15 +234,20 @@ export function SpinOverlay({
     ghostBall.renderOrder = 12;
     const userTrail = makeTrail(USER);
     const idealTrail = makeTrail(IDEAL);
-    const tableLine = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.01, 3), new THREE.MeshBasicMaterial({ color: "#1d4f8a" }));
-    const bar = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: "#ffe066", depthTest: false }));
+    const tableLine = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.01, 3), new THREE.MeshBasicMaterial({ color: "#1b3a68" }));
+    const sidePanel = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.5), new THREE.MeshBasicMaterial({ color: PANEL_INSET, transparent: true, opacity: 0.92, depthTest: false }));
+    sidePanel.rotation.y = -Math.PI / 2;
+    sidePanel.renderOrder = 7;
+    const divider = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.5, 0.004), new THREE.MeshBasicMaterial({ color: VIOLET_SOFT, transparent: true, opacity: 0.55, depthTest: false }));
+    divider.renderOrder = 7;
+    const bar = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: VIOLET_SOFT, depthTest: false }));
     const marker = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: "#ffffff", depthTest: false }));
     bar.renderOrder = marker.renderOrder = 12;
     bar.rotation.y = marker.rotation.y = -Math.PI / 2;
     const root = new THREE.Group();
-    root.add(spin.group, user.group, ideal.group, userRacket, idealRacket, ghostBall, userTrail, idealTrail, tableLine, bar, marker);
+    root.add(spin.group, user.group, ideal.group, userRacket, idealRacket, ghostBall, userTrail, idealTrail, tableLine, sidePanel, divider, bar, marker);
     setLayer(root, OVERLAY_LAYER);
-    return { root, spin, user, ideal, userRacket, idealRacket, ghostBall, userTrail, idealTrail, tableLine, bar, marker };
+    return { root, spin, user, ideal, userRacket, idealRacket, ghostBall, userTrail, idealTrail, tableLine, sidePanel, divider, bar, marker };
   }, []);
 
   const labelsRef = useRef<THREE.Group>(null);
@@ -247,7 +257,7 @@ export function SpinOverlay({
 
   const panel = useRef<THREE.Mesh>(null);
   const frame = useRef<THREE.Mesh>(null);
-  const [texts, setTexts] = useState<Texts>({ title: "", angle: "", angleC: USER, speed: "", speedC: USER, dir: "", dirC: USER, advice: "" });
+  const [texts, setTexts] = useState<Texts>({ title: "", angle: "", angleC: USER, speed: "", speedC: USER, dir: "", dirC: USER, advice: "", state: "" });
   const tick = useRef(0);
   const camTarget = useMemo(() => new THREE.Vector3(), []);
   const _v = useMemo(() => new THREE.Vector3(), []);
@@ -282,7 +292,7 @@ export function SpinOverlay({
     // Kamera: live am Schläger, in der Wiederholung fest am Treffpunkt
     const focus = replay ? s.racketPos : racket.pos;
     camTarget.lerp(_v.set(focus.x, focus.y, focus.z - 0.06), 0.25);
-    cam.position.set(camTarget.x - 0.8, camTarget.y + 0.04, camTarget.z);
+    cam.position.set(camTarget.x - 0.98, camTarget.y + 0.04, camTarget.z);
     cam.lookAt(camTarget);
     // In der Wiederholung nur die Overlay-Elemente zeigen (keine Live-Szene)
     if (replay) cam.layers.disable(0);
@@ -346,19 +356,21 @@ export function SpinOverlay({
     const bar = helpers.bar;
     bar.visible = helpers.marker.visible = replay;
     if (replay) {
-      const full = 0.5;
+      const full = 0.62;
       const f = (tClip + CLIP_BEFORE) / (CLIP_BEFORE + CLIP_AFTER);
-      const y = camTarget.y + 0.225;
-      const zStart = camTarget.z + full / 2;
+      const y = camTarget.y - 0.245;
+      const zStart = camTarget.z - 0.18 + full / 2;
       bar.scale.set(Math.max(full * f, 0.001), 0.006, 1);
       bar.position.set(camTarget.x, y, zStart - (full * f) / 2);
       helpers.marker.scale.set(0.004, 0.018, 1);
       helpers.marker.position.set(camTarget.x, y, zStart - full * (CLIP_BEFORE / (CLIP_BEFORE + CLIP_AFTER)));
-      (bar.material as THREE.MeshBasicMaterial).color.set(paused ? "#ffffff" : "#ffe066");
+      (bar.material as THREE.MeshBasicMaterial).color.set(paused ? USER : VIOLET_SOFT);
     }
 
     // Texte (gedrosselt)
-    if (labelsRef.current) labelsRef.current.position.copy(camTarget);
+    if (labelsRef.current) labelsRef.current.position.copy(_v.set(camTarget.x, camTarget.y + 0.02, camTarget.z - 0.38));
+    helpers.sidePanel.position.copy(_v.set(camTarget.x + 0.002, camTarget.y, camTarget.z - 0.38));
+    helpers.divider.position.copy(_v.set(camTarget.x, camTarget.y, camTarget.z - 0.135));
     if (++tick.current % 6 === 0) {
       let open: number;
       if (replay) open = s.openDeg;
@@ -382,7 +394,8 @@ export function SpinOverlay({
         speedC: grade(Math.abs(v - ideal.speed), 0.5, 1.2),
         dir: `Richtung  du ${dir >= 0 ? "+" : ""}${Math.round(dir)}°  ·  ideal ${ideal.dirDeg >= 0 ? "+" : ""}${ideal.dirDeg}°`,
         dirC: v < 0.3 ? "#cfd8e3" : grade(Math.abs(dir - ideal.dirDeg), 12, 25),
-        advice: replay ? `→ ${advice(s)}` : spec.tip,
+        advice: replay ? advice(s) : spec.tip,
+        state: replay ? (paused ? "Treffpunkt hält 1 s" : "Bewegung läuft in Schleife") : "Live-Vorschau",
       };
       if (JSON.stringify(next) !== JSON.stringify(texts)) setTexts(next);
     }
@@ -392,7 +405,7 @@ export function SpinOverlay({
     gl.xr.enabled = false;
     const prev = gl.getRenderTarget();
     gl.setRenderTarget(fbo);
-    gl.setClearColor("#1b2430", 1);
+    gl.setClearColor(PANEL_BG, 1);
     gl.clear();
     gl.render(scene, cam);
     gl.setRenderTarget(prev);
@@ -402,9 +415,9 @@ export function SpinOverlay({
     const p = panel.current;
     if (!p) return;
     if (isXR) {
-      p.position.set(-0.62, 1.3, 1.25);
-      p.rotation.set(0, 0.7, 0);
-      p.scale.set(0.48, 0.36, 1);
+      p.position.set(-0.58, 1.34, 1.18);
+      p.rotation.set(0, 0.55, 0);
+      p.scale.set(0.62, 0.35, 1);
     } else {
       const pc = camera as THREE.PerspectiveCamera;
       const d = 0.5;
@@ -412,7 +425,7 @@ export function SpinOverlay({
       const halfW = halfH * pc.aspect;
       const h = halfH * 0.85;
       const wPanel = Math.min(h * (4 / 3), halfW * 0.9);
-      const hPanel = wPanel * 0.75;
+      const hPanel = wPanel * 0.5625;
       _v.set(halfW - wPanel / 2 - halfH * 0.08, halfH - hPanel / 2 - halfH * 0.22, -d);
       p.position.copy(_v.applyQuaternion(pc.quaternion).add(pc.position));
       p.quaternion.copy(pc.quaternion);
@@ -422,7 +435,10 @@ export function SpinOverlay({
     if (f) {
       f.position.copy(p.position);
       f.quaternion.copy(p.quaternion);
-      f.scale.set(p.scale.x * 1.03, p.scale.y * 1.04, 1);
+      const pulse = snap.current.ready ? 1 + Math.sin(performance.now() * 0.006) * 0.025 : 1;
+      f.scale.set(p.scale.x * 1.035 * pulse, p.scale.y * 1.055 * pulse, 1);
+      const fm = f.material as THREE.MeshBasicMaterial;
+      fm.color.set(snap.current.ready ? VIOLET : "#111827");
     }
   });
 
@@ -430,16 +446,18 @@ export function SpinOverlay({
     <>
       <primitive object={helpers.root} />
       <group ref={labelsRef}>
-        <Label text={texts.title} position={[0, 0.2, 0]} height={0.022} color="#ffe066" />
-        <Label text={texts.angle} position={[0, -0.12, 0]} height={0.018} color={texts.angleC} />
-        <Label text={texts.speed} position={[0, -0.143, 0]} height={0.018} color={texts.speedC} />
-        <Label text={texts.dir} position={[0, -0.166, 0]} height={0.018} color={texts.dirC} />
-        <Label text={texts.advice} position={[0, -0.192, 0]} height={0.02} color="#ffe066" />
-        <Label text={"weiß = du  ·  grün = perfekt"} position={[0, 0.175, 0]} height={0.014} color="#cfd8e3" />
+        <Label text={texts.title} position={[0, 0.19, 0]} height={0.03} color={VIOLET_SOFT} bg="rgba(0,0,0,0)" />
+        <Label text={texts.state} position={[0, 0.145, 0]} height={0.018} color={TEXT_MUTED} bg="rgba(0,0,0,0)" />
+        <Label text={"DU"} position={[0, 0.085, 0.13]} height={0.02} color={USER} bg="rgba(0,0,0,0)" />
+        <Label text={"PERFEKT"} position={[0, 0.085, -0.07]} height={0.02} color={IDEAL} bg="rgba(0,0,0,0)" />
+        <Label text={texts.angle} position={[0, 0.025, 0]} height={0.024} color={texts.angleC} bg="rgba(0,0,0,0)" />
+        <Label text={texts.speed} position={[0, -0.035, 0]} height={0.024} color={texts.speedC} bg="rgba(0,0,0,0)" />
+        <Label text={texts.dir} position={[0, -0.095, 0]} height={0.024} color={texts.dirC} bg="rgba(0,0,0,0)" />
+        <Label text={texts.advice} position={[0, -0.18, 0]} height={0.026} color="#e6d36a" bg="rgba(0,0,0,0)" />
       </group>
       <mesh ref={frame} renderOrder={19} onUpdate={(m) => m.layers.set(PANEL_LAYER)}>
         <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial color="#1b2430" depthTest={false} />
+        <meshBasicMaterial color="#111827" depthTest={false} />
       </mesh>
       <mesh ref={panel} renderOrder={20} onUpdate={(m) => m.layers.set(PANEL_LAYER)}>
         <planeGeometry args={[1, 1]} />

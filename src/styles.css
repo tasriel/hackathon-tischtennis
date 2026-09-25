@@ -140,5 +140,12 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: "Figtree", system-ui, sans-serif;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: "Outfit", "Figtree", system-ui, sans-serif;
   }
 }

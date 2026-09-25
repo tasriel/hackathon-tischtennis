@@ -14,11 +14,6 @@ export const Table = forwardRef<{ far: THREE.MeshStandardMaterial | null; net: T
     const top = TABLE.height - 0.015;
     return (
       <group>
-        {/* Boden */}
-        <mesh rotation-x={-Math.PI / 2} receiveShadow>
-          <planeGeometry args={[14, 14]} />
-          <meshStandardMaterial color="#8a6b4f" roughness={0.9} />
-        </mesh>
         {/* Das Modell ersetzt Platte, Netz und Beine. Seine lange Achse wird auf Z gedreht. */}
         <SceneModel
           url={tableAsset.url}
