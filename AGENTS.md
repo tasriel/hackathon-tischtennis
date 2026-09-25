@@ -12,3 +12,4 @@
 - Keep imported GLB visuals isolated in `SceneModel`-based shells while physics uses canonical metric constants, so models remain replaceable.
 - Render replay-only ball visuals on the overlay layer with a separate material, so review color and position cannot alter the live ball.
 - Keep the court net as a single alpha-cutout texture plane using canonical net height, so the XR scene avoids a costly decorative net model without changing ball collisions.
+- Drive target celebrations from far-table impact events and keep floor markings hidden only during replay capture, so visual feedback is frame-rate-independent and the main hall retains its markings.
