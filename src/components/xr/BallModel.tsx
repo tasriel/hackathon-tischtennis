@@ -15,6 +15,8 @@ const SPIN_CROSS = "#175b91";
  */
 export function BallModel({ isSlowMotion = () => false }: { isSlowMotion?: () => boolean }) {
   const blend = useRef(0);
+  const lastBase = useRef("");
+  const mixedColor = useMemo(() => new THREE.Color(), []);
   const surface = useMemo(() => {
     const c = document.createElement("canvas");
     c.width = 256;
@@ -30,9 +32,11 @@ export function BallModel({ isSlowMotion = () => false }: { isSlowMotion?: () =>
     if (!surface) return;
     const target = isSlowMotion() ? 1 : 0;
     blend.current += (target - blend.current) * (1 - Math.exp(-7 * Math.min(delta, 0.05)));
-    const base = NORMAL_BALL.clone().lerp(SLOWMO_BALL, blend.current);
+    const base = `#${mixedColor.copy(NORMAL_BALL).lerp(SLOWMO_BALL, blend.current).getHexString()}`;
+    if (base === lastBase.current) return;
+    lastBase.current = base;
     const { context: g, texture } = surface;
-    g.fillStyle = `#${base.getHexString()}`;
+    g.fillStyle = base;
     g.fillRect(0, 0, 256, 128);
     g.fillStyle = SPIN_BAND;
     g.fillRect(0, 54, 256, 20); // dunkler Äquator-Streifen mit klarem Kontrast zum Zeitlupen-Orange
