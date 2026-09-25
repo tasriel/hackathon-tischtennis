@@ -38,8 +38,6 @@ export function GymRoom() {
         <planeGeometry args={[9, 10]} />
         <meshStandardMaterial color={FLOOR} roughness={0.78} metalness={0.02} />
       </mesh>
-      <gridHelper args={[9, 18, "#b9c0c7", "#c5cbd1"]} position={[0, 0.002, 0]} />
-
       <ClothWall position={[0, 1.6, -3.2]} size={[8.8, 3.2]} />
       <ClothWall position={[-4.4, 1.6, 0.8]} rotation={[0, Math.PI / 2, 0]} size={[8.0, 3.2]} />
       <ClothWall position={[4.4, 1.6, 0.8]} rotation={[0, -Math.PI / 2, 0]} size={[8.0, 3.2]} />

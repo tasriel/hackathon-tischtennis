@@ -2,7 +2,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useXR, useXRInputSourceState } from "@react-three/xr";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import { ARM_REACH, BALL_RADIUS, CONTACT_Z, TABLE } from "@/lib/constants";
+import { ARM_REACH, CONTACT_Z, TABLE } from "@/lib/constants";
 import {
   collideRacket,
   makeBall,
@@ -70,7 +70,6 @@ export function Simulation() {
   });
 
   const ballGroup = useRef<THREE.Group>(null);
-  const axisRef = useRef<THREE.Mesh>(null);
   const racketGroup = useRef<THREE.Group>(null);
   const snap = useRef<ContactSnapshot>(makeSnapshot());
   // Für die Vorschau: stärker geglättete Schlägerbewegung, damit die Kurve nicht zappelt
@@ -112,7 +111,6 @@ export function Simulation() {
     s.metrics = null;
     s.flashTarget = "none";
     s.lastSpin = "";
-
   };
 
   useEffect(() => {
@@ -155,7 +153,6 @@ export function Simulation() {
       result,
     };
     m.result = result;
-
   };
 
   const _prevPos = useMemo(() => new THREE.Vector3(), []);
@@ -169,7 +166,6 @@ export function Simulation() {
   const _shoulder = useMemo(() => new THREE.Vector3(), []);
   const _ray = useMemo(() => new THREE.Raycaster(), []);
   const _plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 0, 1), -CONTACT_Z), []);
-  const _up = useMemo(() => new THREE.Vector3(0, 1, 0), []);
   const trigWasPressed = useRef(false);
   const s0 = useMemo(() => ({ clipPending: false }), []);
   const ring = useMemo<ClipFrame[]>(
@@ -320,12 +316,6 @@ export function Simulation() {
         ballGroup.current.children[0]!.quaternion.premultiply(_q);
       }
     }
-    if (axisRef.current) {
-      const w = ball.spin.length();
-      axisRef.current.visible = w > 5;
-      if (w > 5) axisRef.current.quaternion.setFromUnitVectors(_up, _tmp.copy(ball.spin).divideScalar(w));
-    }
-
     // ---------- Vorschau ----------
     const showPreview = !s.hit && !s.done && scale < 0.85;
     if (showPreview && ++s.predictTick % 3 === 0) {
@@ -393,10 +383,6 @@ export function Simulation() {
         <group>
           <BallModel />
         </group>
-        <mesh ref={axisRef}>
-          <cylinderGeometry args={[0.0015, 0.0015, BALL_RADIUS * 4, 6]} />
-          <meshBasicMaterial color="#ffd400" />
-        </mesh>
       </group>
       <primitive object={previewMesh} />
       <Target ball={ball} enabled={() => sim.current.hit} />
