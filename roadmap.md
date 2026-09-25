@@ -9,4 +9,5 @@
 - [x] Target-Treffer mit Signalton, Aufleuchten und Konfetti.
 - [x] Turnhallenraum mit grauem Boden, Stoffwänden, Balken und Lichtern.
 - [x] Ballfeedback außerhalb des Reviewfensters entfernt; Reviewfenster größer und mit pulsierendem Rahmen.
+- [x] Neue Qualitätsmodelle für Tisch, Schläger, Ziel und Netz einsetzen; Schlägerachse und Netzkante prüfen.
 - [ ] Test auf der Quest 3 (braucht das Headset).

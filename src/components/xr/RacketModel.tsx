@@ -1,4 +1,4 @@
-import racketAsset from "@/assets/racket.glb.asset.json";
+import racketAsset from "@/assets/racket-quality.glb.asset.json";
 import { SceneModel } from "./SceneModel";
 
 /**
