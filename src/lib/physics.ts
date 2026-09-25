@@ -79,15 +79,21 @@ export function stepBall(b: BallState, dt: number): TableEvent {
     Math.abs(b.pos.x) <= TABLE.width / 2 && Math.abs(b.pos.z) <= TABLE.length / 2;
   if (onTable && b.vel.y < 0 && b.pos.y <= TABLE.height + BALL_RADIUS && b.pos.y > TABLE.height - 0.05) {
     b.pos.y = TABLE.height + BALL_RADIUS;
-    b.vel.y = -b.vel.y * TABLE_RESTITUTION;
-    // Reibung am Kontaktpunkt -> Spin beeinflusst den Absprung
+    const vyIn = -b.vel.y;
+    b.vel.y = vyIn * TABLE_RESTITUTION;
+    // Reibung am Kontaktpunkt (Coulomb-begrenzt) -> Spin beeinflusst den Absprung
     _r.set(0, -BALL_RADIUS, 0);
     _vc.crossVectors(b.spin, _r).add(b.vel);
     _vc.y = 0;
-    _dv.copy(_vc).multiplyScalar(-TABLE_FRICTION);
-    b.vel.add(_dv);
-    _t.crossVectors(_r, _dv).multiplyScalar(3 / (2 * BALL_RADIUS * BALL_RADIUS));
-    b.spin.add(_t);
+    const slip = _vc.length();
+    if (slip > 1e-6) {
+      // max. Reibungsimpuls: mu * Normalimpuls; höchstens bis Rollen (Hohlkugel: 2/5)
+      const dvMag = Math.min(TABLE_FRICTION * (1 + TABLE_RESTITUTION) * vyIn, 0.4 * slip);
+      _dv.copy(_vc).multiplyScalar(-dvMag / slip);
+      b.vel.add(_dv);
+      _t.crossVectors(_r, _dv).multiplyScalar(3 / (2 * BALL_RADIUS * BALL_RADIUS));
+      b.spin.add(_t);
+    }
     return b.pos.z < 0 ? "table-far" : "table-near";
   }
 
