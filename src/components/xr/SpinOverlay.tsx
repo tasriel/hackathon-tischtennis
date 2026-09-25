@@ -127,6 +127,7 @@ export function SpinOverlay({
   });
 
   const panel = useRef<THREE.Mesh>(null);
+  const frame = useRef<THREE.Mesh>(null);
   const [texts, setTexts] = useState({ angle: "", speed: "", slow: "", explain: "" });
   const tick = useRef(0);
   const camTarget = useMemo(() => new THREE.Vector3(), []);
@@ -218,17 +219,27 @@ export function SpinOverlay({
       p.quaternion.copy(pc.quaternion);
       p.scale.set(wPanel, hPanel, 1);
     }
+    const f = frame.current;
+    if (f) {
+      f.position.copy(p.position);
+      f.quaternion.copy(p.quaternion);
+      f.scale.set(p.scale.x * 1.03, p.scale.y * 1.04, 1);
+    }
   });
 
   return (
     <>
       <primitive object={helpers.root} />
       <group ref={labelsRef}>
-        <Label text={texts.angle} position={[0, 0.2, -0.22]} height={0.022} />
-        <Label text={texts.speed} position={[0, 0.172, -0.22]} height={0.02} color="#bff5cf" />
-        <Label text={texts.slow} position={[0, 0.2, 0.2]} height={0.022} color="#ffe066" />
+        <Label text={texts.angle} position={[0, 0.2, -0.13]} height={0.022} />
+        <Label text={texts.speed} position={[0, 0.172, -0.13]} height={0.02} color="#bff5cf" />
+        <Label text={texts.slow} position={[0, 0.2, 0.22]} height={0.022} color="#ffe066" />
         <Label text={texts.explain} position={[0, -0.18, 0]} height={0.022} />
       </group>
+      <mesh ref={frame} renderOrder={19} onUpdate={(m) => m.layers.set(PANEL_LAYER)}>
+        <planeGeometry args={[1, 1]} />
+        <meshBasicMaterial color="#1b2430" depthTest={false} />
+      </mesh>
       <mesh ref={panel} renderOrder={20} onUpdate={(m) => m.layers.set(PANEL_LAYER)}>
         <planeGeometry args={[1, 1]} />
         <meshBasicMaterial map={fbo.texture} toneMapped={false} depthTest={false} />
