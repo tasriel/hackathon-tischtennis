@@ -383,7 +383,7 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
         <Label text={spinLabel} position={[0, 0.06, 0]} height={0.035} />
       </group>
       <primitive object={previewMesh} />
-      <CupPyramid ball={ball} />
+      <CupPyramid ball={ball} enabled={() => sim.current.hit} />
       <SpinOverlay ball={ball} racket={racket} snap={snap} getScale={() => sim.current.scale} />
       <Label text={hint} position={[0, TABLE.height + 0.55, -0.4]} height={0.08} />
       <Label text={info} position={[0, TABLE.height + 0.44, -0.4]} height={0.05} color="#cfd8e3" />
