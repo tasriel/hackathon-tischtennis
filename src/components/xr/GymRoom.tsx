@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import * as THREE from "three";
 
-const FLOOR = "#121212";
-const WOOD = "#7a4a2a";
-const WOOD_DARK = "#5a3419";
-const LIGHT = "#ffd9a3";
+const FLOOR = "#9fcf9a";
+const WOOD = "#ad8355";
+const WOOD_DARK = "#785a3a";
+const LIGHT = "#fff1cf";
 const WALL_H = 3.2;
 const SPLIT = 1.35; // Höhe der Teilung (unten Stoff, oben Backstein)
 
@@ -47,12 +47,12 @@ function cloth(len: number) {
     128,
     128,
     (g) => {
-      g.fillStyle = "#1f3b2c";
+      g.fillStyle = "#4d8661";
       g.fillRect(0, 0, 128, 128);
       for (let i = 0; i < 128; i += 2) {
         g.fillStyle = `rgba(255,255,255,${0.02 + Math.random() * 0.03})`;
         g.fillRect(i, 0, 1, 128);
-        g.fillStyle = `rgba(0,0,0,${0.05 + Math.random() * 0.05})`;
+        g.fillStyle = `rgba(0,0,0,${0.025 + Math.random() * 0.025})`;
         g.fillRect(0, i, 128, 1);
       }
     },
@@ -68,7 +68,7 @@ function floorTex() {
       g.fillStyle = FLOOR;
       g.fillRect(0, 0, 256, 256);
       for (let i = 0; i < 1200; i++) {
-        g.fillStyle = `rgba(255,255,255,${Math.random() * 0.025})`;
+        g.fillStyle = `rgba(255,255,255,${Math.random() * 0.045})`;
         g.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
       }
     },
@@ -112,7 +112,7 @@ export function GymRoom() {
       {/* Decke + Holzbalken */}
       <mesh rotation-x={Math.PI / 2} position={[0, WALL_H, 0.8]}>
         <planeGeometry args={[8.8, 8]} />
-        <meshStandardMaterial color="#2a1c13" roughness={1} />
+        <meshStandardMaterial color="#c0a888" roughness={1} />
       </mesh>
       {[-3, -1.5, 0, 1.5, 3].map((x) => (
         <mesh key={x} position={[x, WALL_H - 0.1, 0.8]}>

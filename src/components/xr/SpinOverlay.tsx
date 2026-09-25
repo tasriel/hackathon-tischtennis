@@ -2,6 +2,10 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useXR } from "@react-three/xr";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+import { Line2 } from "three/addons/lines/Line2.js";
+import { LineGeometry } from "three/addons/lines/LineGeometry.js";
+import { LineMaterial } from "three/addons/lines/LineMaterial.js";
+import { PointerCursorMaterial, PointerRayMaterial } from "@pmndrs/xr/internals";
 import { BALL_RADIUS, RACKET_RADIUS, TABLE } from "@/lib/constants";
 import { racketPointVel, slowmoBoost, spinType, type BallState, type RacketState } from "@/lib/physics";
 import { DEFAULT_IDEAL, type IdealShot } from "@/lib/idealShot";
@@ -67,7 +71,7 @@ export function makeSnapshot(): ContactSnapshot {
 }
 
 const SPIN_COLORS = { BACKSPIN: "#70a5ff", TOPSPIN: "#f3a14a", "OHNE SPIN": "#9aa3ad" } as const;
-const USER = "#0a0a0a";
+const USER = "#e53935";
 const USER_TEXT = "#f8fafc";
 const IDEAL = "#2ee66b";
 const OK = "#9ff0b4";
@@ -140,10 +144,24 @@ function makeGhost(color: string, opacity: number) {
 }
 
 function makeTrail(color: string) {
-  const line = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color, depthTest: false }));
+  const line = new Line2(new LineGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0, 0.001)]), new LineMaterial({ color, linewidth: 0.008, worldUnits: true, depthTest: false, depthWrite: false }));
   line.renderOrder = 8;
   line.frustumCulled = false;
   return line;
+}
+
+/** XR pointer visuals are hidden for the offscreen image only; interaction and the main view stay intact. */
+function hideXRPointerVisuals(scene: THREE.Scene) {
+  const hidden: THREE.Object3D[] = [];
+  scene.traverse((object) => {
+    if (!(object instanceof THREE.Mesh) || !object.visible) return;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    if (materials.some((material) => material instanceof PointerRayMaterial || material instanceof PointerCursorMaterial)) {
+      object.visible = false;
+      hidden.push(object);
+    }
+  });
+  return () => hidden.forEach((object) => { object.visible = true; });
 }
 
 const arrowLen = (v: number) => Math.min(0.04 + v * 0.04, 0.22);
@@ -207,7 +225,7 @@ function sampleClip(clip: ClipFrame[], t: number, pos: THREE.Vector3, quat: THRE
 
 /**
  * Seitliche Nahaufnahme des Schlägers (von links, aus Spielersicht).
- * Live: eigene Bewegung (weiß) vs. perfekte Bewegung (grün).
+ * Live: eigene Bewegung (rot) vs. perfekte Bewegung (grün).
  * Nach dem Treffer: Animation des Schlags in Schleife mit 1 s Pause am Treffpunkt,
  * parallel dazu die perfekte Bewegung in Grün – bis der nächste Ball kommt.
  */
@@ -304,14 +322,14 @@ export function SpinOverlay({
     if (replay && replayState.current.clip !== s.clip) {
       replayState.current = { clip: s.clip, start: now };
       helpers.userTrail.geometry.dispose();
-      helpers.userTrail.geometry = new THREE.BufferGeometry().setFromPoints(s.clip.map((f) => f.pos));
+      helpers.userTrail.geometry = new LineGeometry().setFromPoints(s.clip.map((f) => f.pos));
       const boost = slowmoBoost(s.scale);
       const realSpeed = ideal.speed / boost;
       idealDir(ideal.dirDeg, _d);
       const pts: THREE.Vector3[] = [];
       for (let t = -CLIP_BEFORE; t <= CLIP_AFTER + 1e-6; t += 0.05) pts.push(idealPos(s.racketPos, _d, realSpeed, t, new THREE.Vector3()));
       helpers.idealTrail.geometry.dispose();
-      helpers.idealTrail.geometry = new THREE.BufferGeometry().setFromPoints(pts);
+      helpers.idealTrail.geometry = new LineGeometry().setFromPoints(pts);
     }
 
     // Kamera: live am Schläger, in der Wiederholung fest am Treffpunkt
@@ -362,7 +380,7 @@ export function SpinOverlay({
       helpers.spin.mat.color.set(SPIN_COLORS[st]);
     }
 
-    // Zwei Pfeile: deine Bewegung (weiß) und perfekte Bewegung (grün)
+    // Zwei Pfeile: deine Bewegung (rot) und perfekte Bewegung (grün)
     const liveVel = racketPointVel(racket, _zero, _live);
     const vel = replay ? s.racketVel : liveVel;
     const v = vel.length();
@@ -446,9 +464,14 @@ export function SpinOverlay({
     gl.setRenderTarget(fbo);
     gl.setClearColor(PANEL_BG, 1);
     gl.clear();
-    gl.render(scene, cam);
-    gl.setRenderTarget(prev);
-    gl.xr.enabled = xrOn;
+    const restorePointers = replay ? hideXRPointerVisuals(scene) : () => {};
+    try {
+      gl.render(scene, cam);
+    } finally {
+      restorePointers();
+      gl.setRenderTarget(prev);
+      gl.xr.enabled = xrOn;
+    }
     if (saved && bo && ro) {
       bo.position.copy(saved.bp);
       ro.position.copy(saved.rp);

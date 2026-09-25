@@ -14,10 +14,10 @@ export function XRScene() {
         onCreated={({ camera }) => camera.lookAt(0, TABLE.height, 0)}
         dpr={[1, 1.5]}
       >
-        <color attach="background" args={["#1c140f"]} />
-        <fog attach="fog" args={["#1c140f", 8, 18]} />
-        <hemisphereLight args={["#ffe2bf", "#3a2a1e", 0.9]} />
-        <directionalLight position={[2.5, 5, 2.5]} intensity={1.0} color="#ffe6c4" />
+        <color attach="background" args={["#d7e6d2"]} />
+        <fog attach="fog" args={["#d7e6d2", 8, 18]} />
+        <hemisphereLight args={["#fff5e5", "#75987a", 1.3]} />
+        <directionalLight position={[2.5, 5, 2.5]} intensity={1.35} color="#fff5e5" />
         <XR store={store}>
           <XROrigin position={[0, 0, PLAYER_Z]} />
           <Simulation />
