@@ -147,7 +147,7 @@ export function XRScene({ onStatus }: { onStatus?: (s: SceneStatus) => void }) {
         setLabel({ text: `${outSpin.type} ${outSpin.rps.toFixed(0)} U/s`, color: spinColor(outSpin.type) });
         setSnap({
           racketQuat: r.quat.clone(),
-          ballOffset: rel.applyQuaternion(r.quat.clone().invert()).applyQuaternion(r.quat),
+          ballOffset: rel,
           wIn: before.w, wOut: b.w.clone(),
           inText: inSpin.type, outText: outSpin.type,
           inColor: spinColor(inSpin.type), outColor: spinColor(outSpin.type),

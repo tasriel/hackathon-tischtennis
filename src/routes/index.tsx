@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Canvas } from "@react-three/fiber";
 import { XR, createXRStore } from "@react-three/xr";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { XRScene } from "@/components/xr/XRScene";
 
 export const Route = createFileRoute("/")({
@@ -27,11 +27,11 @@ const store = createXRStore({
 
 function Index() {
   const [supported, setSupported] = useState<boolean | null>(null);
-  if (supported === null && typeof navigator !== "undefined") {
+  useEffect(() => {
     const xr = (navigator as Navigator & { xr?: XRSystem }).xr;
     if (!xr) setSupported(false);
     else xr.isSessionSupported("immersive-vr").then(setSupported).catch(() => setSupported(false));
-  }
+  }, []);
 
   return (
     <div className="fixed inset-0 bg-background">
