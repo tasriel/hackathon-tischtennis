@@ -2,20 +2,30 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useXR } from "@react-three/xr";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { BALL_RADIUS, RACKET_RADIUS } from "@/lib/constants";
-import { racketPointVel, spinType, type BallState, type RacketState } from "@/lib/physics";
+import { BALL_RADIUS, RACKET_RADIUS, TABLE } from "@/lib/constants";
+import { racketPointVel, slowmoBoost, spinType, type BallState, type RacketState } from "@/lib/physics";
 import { DEFAULT_IDEAL, type IdealShot } from "@/lib/idealShot";
+import { settings } from "@/lib/settings";
+import { STROKES } from "@/lib/strokes";
 import { Label } from "./Label";
 
 /** Layer nur für die Nahaufnahme (Pfeile, Texte). Hauptkamera sieht ihn nicht. */
 export const OVERLAY_LAYER = 5;
 /** Layer der Anzeigetafel. Die Nahaufnahme-Kamera sieht ihn nicht (keine Rückkopplung). */
 const PANEL_LAYER = 6;
-/** So lange (Echtzeit) zeigt das Overlay nach dem Treffer den eigenen Schlag. */
-export const REPLAY_SECONDS = 3;
+/** Aufgezeichnete Zeit vor / nach dem Balltreffpunkt (Echtzeit, s). */
+export const CLIP_BEFORE = 0.6;
+export const CLIP_AFTER = 0.4;
+/** Pause am Balltreffpunkt in der Wiederholung (s). */
+const CONTACT_PAUSE = 1;
+
+export type ClipFrame = { t: number; pos: THREE.Vector3; quat: THREE.Quaternion; ball: THREE.Vector3; spin: THREE.Vector3 };
 
 export type ContactSnapshot = {
   active: boolean;
+  /** Aufzeichnung fertig → Wiederholung läuft in Schleife bis zum nächsten Ball */
+  ready: boolean;
+  clip: ClipFrame[];
   t0: number;
   point: THREE.Vector3;
   friction: THREE.Vector3;
@@ -36,6 +46,8 @@ export type ContactSnapshot = {
 export function makeSnapshot(): ContactSnapshot {
   return {
     active: false,
+    ready: false,
+    clip: [],
     t0: 0,
     point: new THREE.Vector3(),
     friction: new THREE.Vector3(),
@@ -55,20 +67,22 @@ export function makeSnapshot(): ContactSnapshot {
 }
 
 const SPIN_COLORS = { BACKSPIN: "#2f7de1", TOPSPIN: "#f08a24", "OHNE SPIN": "#9aa3ad" } as const;
+const USER = "#eef1f5";
+const IDEAL = "#2ee66b";
 const OK = "#9ff0b4";
 const NEAR = "#ffe066";
 const FAR = "#ff8a80";
 const Z = new THREE.Vector3(0, 0, 1);
 const Y = new THREE.Vector3(0, 1, 0);
+const X = new THREE.Vector3(1, 0, 0);
 
 function setLayer(o: THREE.Object3D, l: number) {
   o.traverse((c) => c.layers.set(l));
 }
 
-/** Gebogener Pfeil in der XY-Ebene (Achse +Z), Drehsinn gegen den Uhrzeiger um +Z. */
-function makeArc(color: string, opacity = 1) {
+function makeArc(color: string) {
   const g = new THREE.Group();
-  const mat = new THREE.MeshBasicMaterial({ color, transparent: opacity < 1, opacity, depthTest: false });
+  const mat = new THREE.MeshBasicMaterial({ color, depthTest: false });
   const arc = Math.PI * 1.4;
   const torus = new THREE.Mesh(new THREE.TorusGeometry(1, 0.07, 8, 40, arc), mat);
   const head = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.4, 12), mat);
@@ -79,10 +93,9 @@ function makeArc(color: string, opacity = 1) {
   return { group: g, mat };
 }
 
-/** Gerader Pfeil (Einheitslänge entlang +Y), wird per setArrow ausgerichtet/skaliert. */
-function makeArrow(color: string, opacity = 1) {
+function makeArrow(color: string) {
   const g = new THREE.Group();
-  const mat = new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: opacity < 1, opacity });
+  const mat = new THREE.MeshBasicMaterial({ color, depthTest: false });
   const shaft = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 8), mat);
   const head = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 12), mat);
   shaft.renderOrder = head.renderOrder = 11;
@@ -120,59 +133,67 @@ function makeGhost(color: string, opacity: number) {
   return g;
 }
 
-const arrowLen = (v: number) => Math.min(0.03 + v * 0.05, 0.28);
+function makeTrail(color: string) {
+  const line = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color, depthTest: false }));
+  line.renderOrder = 8;
+  line.frustumCulled = false;
+  return line;
+}
+
+const arrowLen = (v: number) => Math.min(0.04 + v * 0.04, 0.22);
 const fmt = (n: number, d = 1) => n.toFixed(d).replace(".", ",");
 const grade = (diff: number, ok: number, near: number) => (diff <= ok ? OK : diff <= near ? NEAR : FAR);
-
-function speedWord(v: number) {
-  if (v < 0.4) return "kaum Bewegung";
-  if (v < 3) return "Schupf-Tempo";
-  if (v < 5) return "schnell";
-  return "Topspin-Tempo";
-}
+const idealNormal = (openDeg: number, out: THREE.Vector3) => {
+  const o = THREE.MathUtils.degToRad(openDeg);
+  return out.set(0, Math.sin(o), -Math.cos(o));
+};
+const idealDir = (dirDeg: number, out: THREE.Vector3) => {
+  const d = THREE.MathUtils.degToRad(dirDeg);
+  return out.set(0, Math.sin(d), -Math.cos(d));
+};
 
 /** Ein konkreter Verbesserungssatz aus Abweichung zum Ideal. */
 function advice(s: ContactSnapshot): string {
   const i = s.ideal;
   const parts: string[] = [];
   const dOpen = i.openDeg - s.openDeg;
-  if (Math.abs(dOpen) > 8) parts.push(`Blatt ${Math.abs(Math.round(dOpen))}° ${dOpen > 0 ? "weiter öffnen" : "schließen"}`);
+  if (Math.abs(dOpen) > 8) parts.push(`Blatt ${Math.abs(Math.round(dOpen))}° ${dOpen > 0 ? "öffnen" : "schließen"}`);
   const dv = i.speed - s.speed;
-  if (Math.abs(dv) > 0.5) parts.push(`${dv > 0 ? "schneller" : "langsamer"} (${fmt(s.speed)} → ${fmt(i.speed)} m/s)`);
+  if (Math.abs(dv) > 0.5) parts.push(dv > 0 ? "schneller" : "langsamer");
   const dDir = i.dirDeg - s.dirDeg;
-  if (Math.abs(dDir) > 12) parts.push(dDir > 0 ? "mehr nach oben" : "mehr nach vorn statt nach oben");
-  if (s.wrist > 6) parts.push("Handgelenk ruhiger");
-  return parts.length ? parts.join(", ") : "Fast perfekt – genau so wiederholen!";
+  if (Math.abs(dDir) > 12) parts.push(dDir > 0 ? "mehr nach oben" : "mehr nach vorn");
+  return parts.length ? parts.join(" · ") : "Fast perfekt – genau so wiederholen!";
 }
 
-type Texts = {
-  title: string;
-  angle: string;
-  angleC: string;
-  speed: string;
-  speedC: string;
-  dir: string;
-  dirC: string;
-  slow: string;
-  explain: string;
-  advice: string;
-};
+type Texts = { title: string; angle: string; angleC: string; speed: string; speedC: string; dir: string; dirC: string; advice: string };
+
+/** Frame der Aufzeichnung zur Zeit t interpolieren. */
+function sampleClip(clip: ClipFrame[], t: number, pos: THREE.Vector3, quat: THREE.Quaternion, ball: THREE.Vector3) {
+  let i = 0;
+  while (i < clip.length - 2 && clip[i + 1]!.t < t) i++;
+  const a = clip[i]!;
+  const b = clip[i + 1] ?? a;
+  const k = b.t > a.t ? THREE.MathUtils.clamp((t - a.t) / (b.t - a.t), 0, 1) : 0;
+  pos.lerpVectors(a.pos, b.pos, k);
+  quat.slerpQuaternions(a.quat, b.quat, k);
+  ball.lerpVectors(a.ball, b.ball, k);
+}
 
 /**
  * Seitliche Nahaufnahme des Schlägers (von links, aus Spielersicht).
- * Nach einem Treffer zeigt sie 3 s lang den eingefrorenen Kontakt-Moment inkl.
- * Vergleich mit dem idealen Schupf, danach wieder Live-Werte.
+ * Live: eigene Bewegung (weiß) vs. perfekte Bewegung (grün).
+ * Nach dem Treffer: Animation des Schlags in Schleife mit 1 s Pause am Treffpunkt,
+ * parallel dazu die perfekte Bewegung in Grün – bis der nächste Ball kommt.
  */
 export function SpinOverlay({
   ball,
   racket,
   snap,
-  getScale,
 }: {
   ball: BallState;
   racket: RacketState;
   snap: React.MutableRefObject<ContactSnapshot>;
-  getScale: () => number;
+  getScale?: () => number;
 }) {
   const { gl, scene, camera } = useThree();
   const isXR = useXR((s) => s.session != null);
@@ -197,23 +218,26 @@ export function SpinOverlay({
 
   const helpers = useMemo(() => {
     const spin = makeArc(SPIN_COLORS.BACKSPIN);
-    const ghost = makeArc("#8fb8ee", 0.35);
-    const swing = makeArrow("#2ecc71");
-    const ideal = makeArrow("#ffffff", 0.85);
-    const friction = makeArrow("#e53935");
-    const userRacket = makeGhost("#2ecc71", 0.35);
-    const idealRacket = makeGhost("#ffffff", 0.3);
-    const bar = new THREE.Mesh(
-      new THREE.PlaneGeometry(1, 1),
-      new THREE.MeshBasicMaterial({ color: "#ffe066", depthTest: false }),
+    const user = makeArrow(USER);
+    const ideal = makeArrow(IDEAL);
+    const userRacket = makeGhost(USER, 0.55);
+    const idealRacket = makeGhost(IDEAL, 0.45);
+    const ghostBall = new THREE.Mesh(
+      new THREE.SphereGeometry(BALL_RADIUS, 16, 12),
+      new THREE.MeshBasicMaterial({ color: "#ffb347", depthTest: false }),
     );
-    bar.renderOrder = 12;
-    bar.rotation.y = -Math.PI / 2; // zur Kamera (die von -x schaut)
+    ghostBall.renderOrder = 12;
+    const userTrail = makeTrail(USER);
+    const idealTrail = makeTrail(IDEAL);
+    const tableLine = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.01, 3), new THREE.MeshBasicMaterial({ color: "#1d4f8a" }));
+    const bar = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: "#ffe066", depthTest: false }));
+    const marker = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: "#ffffff", depthTest: false }));
+    bar.renderOrder = marker.renderOrder = 12;
+    bar.rotation.y = marker.rotation.y = -Math.PI / 2;
     const root = new THREE.Group();
-    root.add(spin.group, ghost.group, swing.group, ideal.group, friction.group, userRacket, idealRacket);
+    root.add(spin.group, user.group, ideal.group, userRacket, idealRacket, ghostBall, userTrail, idealTrail, tableLine, bar, marker);
     setLayer(root, OVERLAY_LAYER);
-    setLayer(bar, OVERLAY_LAYER);
-    return { root, spin, ghost, swing, ideal, friction, userRacket, idealRacket, bar };
+    return { root, spin, user, ideal, userRacket, idealRacket, ghostBall, userTrail, idealTrail, tableLine, bar, marker };
   }, []);
 
   const labelsRef = useRef<THREE.Group>(null);
@@ -223,104 +247,117 @@ export function SpinOverlay({
 
   const panel = useRef<THREE.Mesh>(null);
   const frame = useRef<THREE.Mesh>(null);
-  const [texts, setTexts] = useState<Texts>({
-    title: "",
-    angle: "",
-    angleC: "#ffffff",
-    speed: "",
-    speedC: OK,
-    dir: "",
-    dirC: "#ffffff",
-    slow: "",
-    explain: "",
-    advice: "",
-  });
+  const [texts, setTexts] = useState<Texts>({ title: "", angle: "", angleC: USER, speed: "", speedC: USER, dir: "", dirC: USER, advice: "" });
   const tick = useRef(0);
   const camTarget = useMemo(() => new THREE.Vector3(), []);
   const _v = useMemo(() => new THREE.Vector3(), []);
   const _d = useMemo(() => new THREE.Vector3(), []);
   const _live = useMemo(() => new THREE.Vector3(), []);
   const _zero = useMemo(() => new THREE.Vector3(), []);
+  const _p = useMemo(() => new THREE.Vector3(), []);
+  const _q = useMemo(() => new THREE.Quaternion(), []);
+  const _b = useMemo(() => new THREE.Vector3(), []);
+  const replayState = useRef<{ clip: ClipFrame[] | null; start: number }>({ clip: null, start: 0 });
 
   useFrame(() => {
     const s = snap.current;
-    const age = (performance.now() - s.t0) / 1000;
-    const replay = s.active && age < REPLAY_SECONDS;
+    const replay = s.ready && s.clip.length > 2;
     const ideal = s.ideal;
+    const now = performance.now();
 
-    // ---- Kamera folgt dem Schläger von links (in der Wiederholung: Kontakt-Moment) ----
+    // Neue Aufzeichnung → Schleife neu starten, Spuren aufbauen
+    if (replay && replayState.current.clip !== s.clip) {
+      replayState.current = { clip: s.clip, start: now };
+      helpers.userTrail.geometry.dispose();
+      helpers.userTrail.geometry = new THREE.BufferGeometry().setFromPoints(s.clip.map((f) => f.pos));
+      const boost = slowmoBoost(s.scale);
+      const realSpeed = ideal.speed / boost;
+      idealDir(ideal.dirDeg, _d);
+      const pts: THREE.Vector3[] = [];
+      for (let t = -CLIP_BEFORE; t <= CLIP_AFTER + 1e-6; t += 0.05) pts.push(idealPos(s.racketPos, _d, realSpeed, t, new THREE.Vector3()));
+      helpers.idealTrail.geometry.dispose();
+      helpers.idealTrail.geometry = new THREE.BufferGeometry().setFromPoints(pts);
+    }
+
+    // Kamera: live am Schläger, in der Wiederholung fest am Treffpunkt
     const focus = replay ? s.racketPos : racket.pos;
-    camTarget.lerp(_v.set(focus.x, focus.y, focus.z - 0.06), replay && age < 0.05 ? 1 : 0.25);
+    camTarget.lerp(_v.set(focus.x, focus.y, focus.z - 0.06), 0.25);
     cam.position.set(camTarget.x - 0.8, camTarget.y + 0.04, camTarget.z);
     cam.lookAt(camTarget);
+    // In der Wiederholung nur die Overlay-Elemente zeigen (keine Live-Szene)
+    if (replay) cam.layers.disable(0);
+    else cam.layers.enable(0);
 
-    // ---- Spin-Pfeil ----
-    const spinVec = replay ? s.spinAfter : ball.spin;
+    let tClip = 0;
+    let paused = false;
+    if (replay) {
+      const total = CLIP_BEFORE + CONTACT_PAUSE + CLIP_AFTER + 0.3;
+      const ph = ((now - replayState.current.start) / 1000) % total;
+      if (ph < CLIP_BEFORE) tClip = ph - CLIP_BEFORE;
+      else if (ph < CLIP_BEFORE + CONTACT_PAUSE) {
+        tClip = 0;
+        paused = true;
+      } else tClip = Math.min(ph - CLIP_BEFORE - CONTACT_PAUSE, CLIP_AFTER);
+
+      sampleClip(s.clip, tClip, _p, _q, _b);
+      helpers.userRacket.position.copy(_p);
+      helpers.userRacket.quaternion.copy(_q);
+      helpers.ghostBall.position.copy(_b);
+      const boost = slowmoBoost(s.scale);
+      idealDir(ideal.dirDeg, _d);
+      idealPos(s.racketPos, _d, ideal.speed / boost, tClip, helpers.idealRacket.position);
+      helpers.idealRacket.quaternion.setFromUnitVectors(X, idealNormal(ideal.openDeg, _v));
+      helpers.tableLine.position.set(s.racketPos.x, TABLE.height - 0.005, 0);
+    }
+    helpers.userRacket.visible = replay;
+    helpers.idealRacket.visible = replay;
+    helpers.ghostBall.visible = replay;
+    helpers.userTrail.visible = replay;
+    helpers.idealTrail.visible = replay;
+    helpers.tableLine.visible = replay;
+
+    // Spin-Pfeil (klein am Ball)
+    const spinVec = replay ? (tClip >= 0 ? s.spinAfter : s.spinBefore) : ball.spin;
     const w = spinVec.length();
     helpers.spin.group.visible = w > 5;
     if (w > 5) {
-      helpers.spin.group.position.copy(replay ? s.point : ball.pos);
+      helpers.spin.group.position.copy(replay ? helpers.ghostBall.position : ball.pos);
       helpers.spin.group.quaternion.setFromUnitVectors(Z, _d.copy(spinVec).divideScalar(w));
-      helpers.spin.group.scale.setScalar(BALL_RADIUS * (1.5 + Math.min(w, 180) / 180));
-      const st = replay ? spinType({ pos: s.point, vel: _v.set(0, 0, -1), spin: s.spinAfter }) : spinType(ball);
+      helpers.spin.group.scale.setScalar(BALL_RADIUS * 1.8);
+      const st = replay
+        ? spinType({ pos: s.point, vel: _v.set(0, 0, tClip >= 0 ? -1 : 1), spin: spinVec })
+        : spinType(ball);
       helpers.spin.mat.color.set(SPIN_COLORS[st]);
     }
 
-    // ---- Schwung-Pfeil (grün): wirksame Schlägergeschwindigkeit ----
+    // Zwei Pfeile: deine Bewegung (weiß) und perfekte Bewegung (grün)
     const liveVel = racketPointVel(racket, _zero, _live);
     const vel = replay ? s.racketVel : liveVel;
     const v = vel.length();
-    const origin = replay ? s.racketPos : racket.pos;
-    helpers.swing.group.visible = v > 0.15;
-    if (v > 0.15) setArrow(helpers.swing, origin, vel, arrowLen(v));
+    const uOrigin = replay ? helpers.userRacket.position : racket.pos;
+    helpers.user.group.visible = v > 0.15;
+    if (v > 0.15) setArrow(helpers.user, uOrigin, vel, arrowLen(v));
+    idealDir(ideal.dirDeg, _d);
+    _v.copy(replay ? helpers.idealRacket.position : racket.pos);
+    if (!replay) _v.y += 0.015;
+    setArrow(helpers.ideal, _v, _d, arrowLen(ideal.speed), 0.0035);
 
-    // ---- Ideal-Pfeil (weiß) ----
-    const di = THREE.MathUtils.degToRad(ideal.dirDeg);
-    _d.set(0, Math.sin(di), -Math.cos(di));
-    _v.copy(origin);
-    _v.y += 0.012;
-    setArrow(helpers.ideal, _v, _d, arrowLen(ideal.speed), 0.003);
-
-    // ---- Schläger-Geister (nur in der Wiederholung) ----
-    helpers.userRacket.visible = replay;
-    helpers.idealRacket.visible = replay;
-    if (replay) {
-      helpers.userRacket.position.copy(s.racketPos);
-      helpers.userRacket.quaternion.copy(s.racketQuat);
-      const o = THREE.MathUtils.degToRad(ideal.openDeg);
-      helpers.idealRacket.position.copy(s.racketPos);
-      // Blattnormale +X → Richtung Ball (−z, nach oben geöffnet)
-      helpers.idealRacket.quaternion.setFromUnitVectors(
-        new THREE.Vector3(1, 0, 0),
-        _v.set(0, Math.sin(o), -Math.cos(o)),
-      );
-    }
-
-    // ---- Kontakt: Reibung (rot) + Spin vorher ----
-    helpers.friction.group.visible = replay && s.friction.lengthSq() > 1e-6;
-    helpers.ghost.group.visible = replay && s.spinBefore.lengthSq() > 25;
-    if (helpers.friction.group.visible) {
-      const f = s.friction.length();
-      setArrow(helpers.friction, s.point, s.friction, THREE.MathUtils.clamp(f * 0.06, 0.03, 0.14), 0.003);
-    }
-    if (helpers.ghost.group.visible) {
-      const wb = s.spinBefore.length();
-      helpers.ghost.group.position.copy(s.point);
-      helpers.ghost.group.quaternion.setFromUnitVectors(Z, _d.copy(s.spinBefore).divideScalar(wb));
-      helpers.ghost.group.scale.setScalar(BALL_RADIUS * 3.2);
-    }
-
-    // ---- Countdown-Balken ----
+    // Fortschrittsbalken mit Markierung am Treffpunkt
     const bar = helpers.bar;
-    bar.visible = replay;
+    bar.visible = helpers.marker.visible = replay;
     if (replay) {
-      const rest = 1 - age / REPLAY_SECONDS;
       const full = 0.5;
-      bar.scale.set(full * rest, 0.006, 1);
-      bar.position.set(camTarget.x, camTarget.y + 0.225, camTarget.z - (full * (1 - rest)) / 2);
+      const f = (tClip + CLIP_BEFORE) / (CLIP_BEFORE + CLIP_AFTER);
+      const y = camTarget.y + 0.225;
+      const zStart = camTarget.z + full / 2;
+      bar.scale.set(Math.max(full * f, 0.001), 0.006, 1);
+      bar.position.set(camTarget.x, y, zStart - (full * f) / 2);
+      helpers.marker.scale.set(0.004, 0.018, 1);
+      helpers.marker.position.set(camTarget.x, y, zStart - full * (CLIP_BEFORE / (CLIP_BEFORE + CLIP_AFTER)));
+      (bar.material as THREE.MeshBasicMaterial).color.set(paused ? "#ffffff" : "#ffe066");
     }
 
-    // ---- Texte (gedrosselt) ----
+    // Texte (gedrosselt)
     if (labelsRef.current) labelsRef.current.position.copy(camTarget);
     if (++tick.current % 6 === 0) {
       let open: number;
@@ -331,33 +368,37 @@ export function SpinOverlay({
         open = THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(toFar.y, -1, 1)));
       }
       const dir = replay ? s.dirDeg : THREE.MathUtils.radToDeg(Math.atan2(vel.y, Math.max(-vel.z, 1e-3)));
-      const openTxt = `${Math.abs(Math.round(open))}° ${open >= 0 ? "offen" : "geschl."}`;
+      const spec = STROKES[settings.serve];
+      const deg = (d: number) => `${Math.abs(Math.round(d))}° ${d >= 0 ? "offen" : "geschl."}`;
       const next: Texts = {
-        title: replay ? "Wiederholung deines Schlags" : "",
-        angle: `Blatt ${openTxt}  ·  ideal ${Math.round(ideal.openDeg)}°`,
+        title: replay
+          ? paused
+            ? "Balltreffpunkt"
+            : `Wiederholung: ${spec.stroke}`
+          : `${spec.serveLabel} → ${spec.stroke}`,
+        angle: `Winkel  du ${deg(open)}  ·  ideal ${deg(ideal.openDeg)}`,
         angleC: grade(Math.abs(open - ideal.openDeg), 8, 18),
-        speed: `Tempo ${fmt(v)} m/s  ·  ideal ${fmt(ideal.speed)}  (${speedWord(v)})`,
+        speed: `Tempo  du ${fmt(v)}  ·  ideal ${fmt(ideal.speed)} m/s`,
         speedC: grade(Math.abs(v - ideal.speed), 0.5, 1.2),
-        dir: `Richtung ${dir >= 0 ? "+" : ""}${Math.round(dir)}°  ·  ideal ${ideal.dirDeg >= 0 ? "+" : ""}${ideal.dirDeg}°${replay ? `  ·  Handgelenk ${fmt(s.wrist)} rad/s` : ""}`,
+        dir: `Richtung  du ${dir >= 0 ? "+" : ""}${Math.round(dir)}°  ·  ideal ${ideal.dirDeg >= 0 ? "+" : ""}${ideal.dirDeg}°`,
         dirC: v < 0.3 ? "#cfd8e3" : grade(Math.abs(dir - ideal.dirDeg), 12, 25),
-        slow: `Zeitlupe ${fmt(replay ? s.scale : getScale(), 2)}×`,
-        explain: replay ? s.explain : "",
-        advice: replay ? `→ ${advice(s)}` : "",
+        advice: replay ? `→ ${advice(s)}` : spec.tip,
       };
       if (JSON.stringify(next) !== JSON.stringify(texts)) setTexts(next);
     }
 
-    // ---- Nahaufnahme rendern ----
+    // Nahaufnahme rendern
     const xrOn = gl.xr.enabled;
     gl.xr.enabled = false;
     const prev = gl.getRenderTarget();
     gl.setRenderTarget(fbo);
+    gl.setClearColor("#1b2430", 1);
     gl.clear();
     gl.render(scene, cam);
     gl.setRenderTarget(prev);
     gl.xr.enabled = xrOn;
 
-    // ---- Tafel platzieren ----
+    // Tafel platzieren
     const p = panel.current;
     if (!p) return;
     if (isXR) {
@@ -388,16 +429,13 @@ export function SpinOverlay({
   return (
     <>
       <primitive object={helpers.root} />
-      <primitive object={helpers.bar} />
       <group ref={labelsRef}>
-        <Label text={texts.title} position={[0, 0.205, 0]} height={0.02} color="#ffe066" />
-        <Label text={texts.angle} position={[0, 0.18, -0.08]} height={0.017} color={texts.angleC} />
-        <Label text={texts.speed} position={[0, 0.158, -0.06]} height={0.017} color={texts.speedC} />
-        <Label text={texts.dir} position={[0, 0.136, -0.06]} height={0.017} color={texts.dirC} />
-        <Label text={texts.slow} position={[0, 0.18, 0.24]} height={0.017} color="#ffe066" />
-        <Label text={texts.explain} position={[0, -0.16, 0]} height={0.017} />
-        <Label text={texts.advice} position={[0, -0.185, 0]} height={0.019} color="#ffe066" />
-        <Label text={"grün = dein Schwung · weiß = ideal · rot = Belag bürstet Ball"} position={[0, -0.207, 0]} height={0.013} color="#cfd8e3" />
+        <Label text={texts.title} position={[0, 0.2, 0]} height={0.022} color="#ffe066" />
+        <Label text={texts.angle} position={[0, -0.12, 0]} height={0.018} color={texts.angleC} />
+        <Label text={texts.speed} position={[0, -0.143, 0]} height={0.018} color={texts.speedC} />
+        <Label text={texts.dir} position={[0, -0.166, 0]} height={0.018} color={texts.dirC} />
+        <Label text={texts.advice} position={[0, -0.192, 0]} height={0.02} color="#ffe066" />
+        <Label text={"weiß = du  ·  grün = perfekt"} position={[0, 0.175, 0]} height={0.014} color="#cfd8e3" />
       </group>
       <mesh ref={frame} renderOrder={19} onUpdate={(m) => m.layers.set(PANEL_LAYER)}>
         <planeGeometry args={[1, 1]} />
@@ -409,4 +447,10 @@ export function SpinOverlay({
       </mesh>
     </>
   );
+}
+
+/** Ideale Schlägerbahn: gerade durch den Treffpunkt, in Echtzeit, auf sinnvolle Länge begrenzt. */
+function idealPos(contact: THREE.Vector3, dir: THREE.Vector3, speed: number, t: number, out: THREE.Vector3) {
+  const tc = THREE.MathUtils.clamp(t, -0.3, 0.2);
+  return out.copy(contact).addScaledVector(dir, speed * tc);
 }
