@@ -464,7 +464,7 @@ export function SpinOverlay({
     gl.setRenderTarget(fbo);
     gl.setClearColor(PANEL_BG, 1);
     gl.clear();
-    const restorePointers = hideXRPointerVisuals(scene);
+    const restorePointers = replay ? hideXRPointerVisuals(scene) : () => {};
     try {
       gl.render(scene, cam);
     } finally {
