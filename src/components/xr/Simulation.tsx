@@ -25,6 +25,28 @@ import { Table } from "./Table";
 import { SpinOverlay, makeSnapshot, CLIP_BEFORE, CLIP_AFTER, type ContactSnapshot, type ClipFrame } from "./SpinOverlay";
 import { Target } from "./Target";
 import { GymRoom } from "./GymRoom";
+import { Label } from "./Label";
+import { useState } from "react";
+
+const SPIN_DE: Record<string, { t: string; c: string }> = {
+  BACKSPIN: { t: "Unterschnitt", c: "#70a5ff" },
+  TOPSPIN: { t: "Oberschnitt", c: "#f3a14a" },
+  SIDE: { t: "Seitschnitt", c: "#e879f9" },
+  "OHNE SPIN": { t: "Ohne Spin", c: "#e5e7eb" },
+};
+
+/** Spin-Art als Text über dem Ball. */
+function BallSpinLabel({ ball }: { ball: ReturnType<typeof makeBall> }) {
+  const [k, setK] = useState("");
+  useFrame(() => {
+    const w = ball.spin.length();
+    let next = "";
+    if (w > 5) next = Math.abs(ball.spin.y) > Math.hypot(ball.spin.x, ball.spin.z) * 0.8 ? "SIDE" : spinType(ball);
+    if (next !== k) setK(next);
+  });
+  const d = SPIN_DE[k];
+  return <Label text={d?.t ?? ""} color={d?.c} bg="rgba(10,10,14,0.7)" height={0.045} position={[0, 0.07, 0]} />;
+}
 
 const PHYS_DT = 1 / 240;
 const RING = 180; // ~2 s bei 90 Hz
@@ -383,11 +405,12 @@ export function Simulation() {
         <group>
           <BallModel />
         </group>
+        <BallSpinLabel ball={ball} />
       </group>
       <primitive object={previewMesh} />
       <Target ball={ball} enabled={() => sim.current.hit} />
       <Menus />
-      <SpinOverlay ball={ball} racket={racket} snap={snap} getScale={() => sim.current.scale} />
+      <SpinOverlay ball={ball} racket={racket} snap={snap} ballObj={ballGroup} racketObj={racketGroup} getScale={() => sim.current.scale} />
     </>
   );
 }
