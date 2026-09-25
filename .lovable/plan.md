@@ -1,89 +1,135 @@
-# AI × XR Table Tennis — One Learning Moment (Quest 3)
+# AI × XR Tischtennis – ein Lernmoment (Quest 3)
 
-Target: Quest 3, controller-only, WebXR in the Meta Browser. Deadline Sep 26, 10:30.
-Goal: one learning loop — incoming backspin, time slows, you tilt the racket, you see spin and trajectory change, you get feedback, you retry.
+Zielgerät: Meta Quest 3, nur Controller, WebXR im Meta-Browser. Schluss spätestens 22 Uhr; Reihenfolge nach Gefühl, kein fester Zeitplan.
 
-## 1. Stack decision
+**Leitsatz:** Kein Tischtennisspiel bauen, sondern einen Lernmoment. XR macht die Interaktion beobachtbar, der Coach macht sie verständlich.
 
-- React Three Fiber + `@react-three/xr` inside this Lovable project. It fits the existing React setup and is the fastest reliable path to WebXR on Quest 3.
-- No backend. Everything runs in the browser: physics, spin model, feedback, coaching. No database, no accounts, no scores.
-- Coaching is rule-based (a small table of measured values → one short sentence). An LLM is not needed and would add latency and risk; the structure stays swappable later.
-- Meshy assets are optional polish. Racket, ball, table and net start as primitives so the prototype never depends on an import working.
-- Physics is hand-written and simple (gravity + drag + Magnus). No physics engine — a full engine is heavier than this needs and harder to keep stable at 72–90 fps.
+**Lernziel (Anfänger):** Verstehen, wie ankommender Spin, Schlägerneigung, Schlägerbewegung, Schlägergeschwindigkeit und Treffzeitpunkt den abgehenden Spin und die Flugbahn beeinflussen. Nach der Nutzung soll man den Schlag bewusst verändern können und sehen, was sich ändert.
 
-## 2. Getting it onto the headset
+Lernschleife: **Beobachten → Vorhersagen → Handeln → Erleben → Feedback → Anpassen → Wiederholen**
 
-The Lovable preview URL is already HTTPS, which is all WebXR requires. On the Quest 3: open the Meta Browser, type the preview URL, press "Enter VR". No cable, no local server, no sideloading — as long as the headset has normal internet Wi-Fi.
-First task of milestone 1 is to confirm this on the actual headset before anything else is built. If the headset is on a network without internet, the fallback is publishing the app and using a phone hotspot.
+## 1. Szene und Spielerposition
 
-## 3. Scene and interaction
+- Spieler steht bereits perfekt am Tisch. Positionierung und Beinarbeit sind ausgeblendet, kein Laufen.
+- Der Schläger ist in der rechten Hand, rechts vom Spieler sichtbar.
+- Nur Arm und Handgelenk werden bewegt. Die Bewegung ist auf eine realistische Armlänge begrenzt:
+  - Schläger drehen (Neigung offen/geschlossen, Handgelenk),
+  - vor/zurück entlang der Ballachse (auf den Ball zu),
+  - hoch/runter.
+- Szene: Tisch, Netz, Boden, schlichte Umgebung. Lernklarheit geht vor realistischer Halle.
 
-- Table, net, floor, and a fixed standing position on one side. No walking.
-- Right controller holds the racket: a flat rounded blade plus handle, following controller position and rotation 1:1.
-- Ball is served from the far side with visible backspin, marked with a coloured stripe and a rotation-axis arrow so the spin direction is readable.
-- Time scale ramps from 1.0× at the net down to about 0.1× just before contact, then back up to 1.0×. Smooth, distance-driven, no jumps.
-- On contact, outgoing velocity and spin come from racket angle, racket speed, and incoming spin. Magnus curves the flight so spin is visibly consequential.
-- Lands on the far half → green table glow. Net or out → red glow. Trigger button restarts the same serve instantly.
+## 2. Übung: Unterschnitt zurückspielen
 
-## 4. Build order (milestones, each a commit)
+- Der Ball kommt frontal auf den Schläger zu, mit mäßigem Unterschnitt (Backspin). Immer derselbe Aufschlag, damit Versuche vergleichbar sind.
+- Ziel: den Ball auf die gegnerische Tischhälfte zurückspielen.
+- Versuch 1 (typisch): Schläger zu geschlossen → Vorschau zeigt schlechte Bahn → Ball geht ins Netz → rot.
+- Hinweis: Pfeil / Winkelanzeige schlägt eine offenere Haltung und mehr Aufwärtsbewegung vor.
+- Versuch 2: Haltung angepasst → Vorschau ändert sich → Ball landet drüben → grün.
+- Neustart per Trigger-Taste, sofort derselbe Ball.
 
-1. `init: WebXR scene` — table, net, floor, Enter-VR button. Verified on the headset.
-2. `feat: controller racket` — racket tracked by the right controller.
-3. `feat: ball + serve` — ball flies toward the player with backspin, spin markings visible.
-4. `feat: collision + outgoing shot` — racket hits ball, plausible result.
-5. `feat: slow motion` — automatic ramp before and after contact.
-6. `feat: feedback` — green/hit, red/miss, quick restart. **MVP is done here.**
-7. `feat: trajectory preview` — faint predicted arc that updates as the racket tilts.
-8. `feat: coaching` — one-line hint plus a racket-angle indicator arrow.
-9. `chore: demo stabilization` — tuning, then freeze.
+## 3. Zeitlupe
 
-## 5. Two developers, one project
+- Ball startet mit normaler Geschwindigkeit (1,0×).
+- Ab etwa dem Netz beginnt die Verlangsamung und wird schrittweise stärker, bis ca. **0,1×** kurz vor dem Schläger.
+- Nach dem Treffer wird schrittweise wieder beschleunigt, sodass am Netz wieder **1,0×** erreicht ist.
+- Übergänge weich, abhängig von der Ballposition. Werte sind Startwerte und werden auf Verständlichkeit getunt.
 
-Both of you do milestones 1–2 together; neither has VR experience and this is where everything can go wrong.
+## 4. Ballphysik
 
-After that:
-- **Dev A (XR/interaction):** racket component, controller input, time-scale controller, contact inspection.
-- **Dev B (learning/simulation):** ball physics + spin model, trajectory prediction, feedback state, coaching rules.
+- Qualitativ realistisch statt wissenschaftlich exakt. Priorität: Stabilität → intuitives Verhalten → Lernwert → Leistung.
+- Modell: ankommende Geschwindigkeit + ankommender Spin + Schlägerneigung + Schlägergeschwindigkeit + Kontakt → abgehende Geschwindigkeit + abgehender Spin → Flugbahn.
+- Schwerkraft, Luftwiderstand und Magnus-Effekt, damit Spin die Bahn sichtbar krümmt.
+- Tischabsprung mit Spin-Einfluss, Netzkollision.
+- Nur glatter Belag (Noppen, Anti, Belagverformung = spätere Erweiterung).
+- Physik bestimmt, was passiert. Keine KI für Physik.
 
-Files are split so you rarely touch the same one. The one shared file is the scene root that composes everything — agree before editing it. In Lovable, avoid running prompts at the same moment; alternate turns, and pull after the other person's change lands.
+## 5. Spin sichtbar machen
 
-Git: one branch, `main`. Commit after each milestone above. No feature branches, no PR review — there is no time and the risk of a bad merge outweighs the benefit.
+- Ein weißer Ball dreht sich zu schnell, um es trotz Zeitlupe zu erkennen. Deshalb Lernball mit farbiger Markierung, sichtbarer Rotationsachse und animierter Oberfläche.
+- Kurzes Label am Ball: **↻ TOPSPIN** / **↺ BACKSPIN**.
+- Der Nutzer sieht direkt: **ankommende Rotation → Kontakt → abgehende Rotation**.
+- Keine übertriebenen Effekte.
 
-## 6. Top risks
+## 6. Flugbahn-Vorschau
 
-| Risk | Likelihood | Impact | Early sign | Fallback |
-|---|---|---|---|---|
-| WebXR won't start on the headset | Medium | Fatal | "Enter VR" missing or greyed out at milestone 1 | Check HTTPS + Meta Browser; fall back to published URL; last resort demo on desktop with mouse-controlled racket |
-| Frame rate drops in VR | Medium | High | Stutter once ball and effects are in | Cut shadows, lower ball trail/arc resolution, simplify materials |
-| Fast ball passes through the racket | High | High | Ball ignores clear hits | Enlarge collision radius, use swept sphere-vs-plane, slow time earlier |
-| Physics feels wrong or unstable | Medium | Medium | Ball flies absurdly | Clamp speeds and spin; tuned-for-teaching constants over realism |
-| Time runs out on polish features | High | Medium | Milestone 6 not done by 02:00 | Ship at milestone 6; 7–9 are optional |
+- Während der Zeitlupe und vor dem Kontakt: halbtransparente vorhergesagte Flugbahn.
+- Berechnet aus Ballgeschwindigkeit, Spin sowie aktueller Schlägerhaltung und -bewegung.
+- Schläger bewegen → Bahn ändert sich sofort. Dezent, verdeckt nicht die Sicht.
 
-## 7. Timebox (from now, ~13:00 Sep 25)
+## 7. Kontakt-Inspektion (Zoom beim Schlag)
 
-- 13:00–15:00 Milestone 1, verified in the headset. **If this isn't working by 15:00, stop and escalate — everything depends on it.**
-- 15:00–16:30 Milestone 2.
-- 16:30–19:00 Milestones 3–4 (split work).
-- 19:00–21:00 Milestone 5, integrate and test in headset.
-- 21:00–23:00 Milestone 6 → **MVP complete and committed.**
-- 23:00–02:00 Milestones 7–8 if stable.
-- 02:00–04:00 Stabilization, freeze the code.
-- Sleep.
-- 07:00–09:00 Record the demo video in-headset, build slides.
-- 09:00–10:00 Rehearse the 3-minute talk.
-- 10:00–10:30 Buffer and submit.
+Ablauf: Normale Sicht → Zeit friert ein → vergrößerte Schläger/Ball-Darstellung → Kontaktinteraktion → zurück zur normalen Sicht.
 
-## 8. Recommended simplifications
+- Wunsch: Die Perspektive „fliegt" zum Kontaktpunkt, Ball und Schläger erscheinen riesig.
+- Sichtbar: ankommender Spin, Kontaktpunkt, wie sich die Rotation beim Aufprall ändert. Zusätzliche Animationen dürfen die Rotationsänderung verdeutlichen, sollen aber möglichst wenig künstlich wirken.
+- **Warnung VR-Übelkeit:** Die Kamera in VR aktiv zu bewegen verursacht leicht Übelkeit. Empfohlene Umsetzung: nicht die Kamera, sondern eine vergrößerte Kopie von Ball und Schläger schwebt kurz vor dem Spieler (oder die Welt skaliert um den Kontaktpunkt). Wirkt wie „hineinzoomen", ist stabil und angenehm. Echter Kameraflug nur, wenn am Ende Zeit bleibt.
 
-- Contact Inspection Mode: instead of moving the camera, freeze the moment and float an enlarged ball+racket model in front of the player. Same insight, no motion sickness, far less code.
-- One serve, always the same backspin. Variety adds nothing to the learning moment.
-- No sound, no menus, no settings. Trigger = restart is the entire UI.
-- Trajectory preview as a thin dotted line of ~20 points, recomputed a few times a second, not every frame.
+## 8. Sofortiges Feedback
 
-## Technical notes
+- Ball landet auf gegnerischer Hälfte → Tisch leuchtet dezent **grün**.
+- Netz oder daneben/drüber → Tisch/Netz leuchtet **rot**.
+- Ohne viel Text verständlich.
 
-- Packages: `three`, `@react-three/fiber@^9`, `@react-three/drei@^10`, `@react-three/xr`, `@types/three`.
-- Route `src/routes/index.tsx` with `ssr: false` — the canvas must not server-render.
-- Files: `src/components/xr/XRScene.tsx` (shared root), `Racket.tsx`, `Table.tsx`, `Ball.tsx` (Dev A owns racket + XR, Dev B owns ball); `src/lib/physics.ts`, `src/lib/spin.ts`, `src/lib/coaching.ts`, `src/lib/timescale.ts`.
-- Simulation state lives in refs updated inside `useFrame`, not React state — per-frame `setState` will tank VR framerate. Only discrete events (hit/miss, hint text) go through React state.
-- Fixed physics substep (e.g. 1/240 s accumulator) scaled by the current time factor, so slow motion doesn't change physics behaviour.
+## 9. Coach
+
+- Kein Chatbot, keine eigene Oberfläche, keine Figur. Soll intuitiv verständlich bleiben.
+- Vor allem räumlich und visuell: Bewegungspfeile, Schlägerwinkel-Anzeige, Flugbahn-Vorschau, kurze Hinweise.
+- Nach dem Schlag höchstens ein kurzer Satz, erzeugt aus Messwerten, z. B.:
+  - Ankommender Spin: Backspin · Schlägerwinkel: 35° offen · Bewegung: aufwärts + vorwärts · Treffzeitpunkt: leicht spät · Ergebnis: Treffer
+  - → „Guter Schlägerwinkel. Mehr Aufwärtsbewegung erzeugt mehr Topspin."
+- Zuerst regelbasiert (zuverlässig, ohne Server). So gebaut, dass später ein echtes KI-Modell denselben Satz liefern kann.
+
+## 10. Austauschbare 3D-Modelle
+
+- Ball und Schläger starten als einfache Demo-Modelle (Grundformen).
+- Aussehen und Physik sind getrennt: Die Physik rechnet mit festen Maßen (Ballradius, Schlägerfläche), das Modell ist nur die Hülle. Später einfach eine Meshy-Datei (GLB) einsetzen, ohne Physik anzufassen.
+- Wenn ein Import Probleme macht: sofort zurück auf die Demo-Form.
+
+## 11. Technik und Zugang zur Brille
+
+- React Three Fiber + WebXR in diesem Lovable-Projekt. Kein Backend, alles läuft im Browser.
+- Auf der Quest 3: Meta-Browser öffnen, Vorschau-Adresse eingeben, „VR starten". Die Adresse ist bereits HTTPS, mehr braucht WebXR nicht. Voraussetzung: Brille im WLAN mit Internet – das ist der allererste Test.
+- Fallback ohne Brille: Desktop-Ansicht mit Maus-Schläger zum Entwickeln.
+
+## 12. Reihenfolge (jeweils ein Git-Commit)
+
+1. WebXR-Szene mit Tisch/Netz, auf der Brille getestet (gemeinsam)
+2. Schläger folgt Controller (gemeinsam)
+3. Ball + Aufschlag mit sichtbarem Backspin
+4. Kollision + Rückschlag
+5. Zeitlupe
+6. Grün/Rot-Feedback + Neustart → **MVP fertig**
+7. Flugbahn-Vorschau
+8. Coach: Pfeile, Winkelanzeige, ein Satz
+9. Kontakt-Inspektion
+10. Feinschliff, Meshy-Modelle einsetzen
+
+## 13. Aufteilung zu zweit
+
+Schritte 1–2 gemeinsam. Danach:
+- **Dev A (XR/Interaktion):** Schläger, Controller, Armlängen-Begrenzung, Zeitlupe, Kontakt-Inspektion.
+- **Dev B (Lernen/Simulation):** Ballphysik, Spin-Modell, Flugbahn-Vorschau, Feedback, Coach-Regeln.
+
+Nur die zentrale Szenendatei ist gemeinsam – vorher absprechen. In Lovable nicht gleichzeitig Prompts senden. Git: nur `main`, Commit nach jedem funktionierenden Schritt.
+
+## 14. Größte Risiken
+
+| Risiko | Warnzeichen | Fallback |
+|---|---|---|
+| WebXR startet nicht auf der Brille | „VR starten" fehlt | Veröffentlichte Adresse / Handy-Hotspot; notfalls Desktop-Demo |
+| Ruckeln in VR | Stottern mit Ball/Effekten | Schatten weg, einfachere Materialien, Vorschau seltener berechnen |
+| Ball fliegt durch den Schläger | Klare Treffer werden ignoriert | Größere Trefferzone, Durchlauf-Kollision, früher verlangsamen |
+| Physik wirkt falsch | Ball fliegt absurd | Geschwindigkeit/Spin begrenzen, auf Lernwirkung tunen |
+| Kontakt-Inspektion zu aufwendig | Übelkeit oder Bugs | Vergrößerte Kopie statt Kameraflug, oder weglassen |
+
+## Nicht jetzt
+
+Gegner-KI, Matches, Punkte, Mehrspieler, Konten, Bestenliste, Laufen, Beinarbeit, Ganzkörper-Avatar, andere Beläge, Menüs, eigene KI-Modelle.
+
+## Technische Details
+
+- Pakete: `three`, `@react-three/fiber@^9`, `@react-three/drei@^10`, `@react-three/xr`.
+- `src/routes/index.tsx` mit `ssr: false`.
+- Komponenten: `src/components/xr/XRScene.tsx` (gemeinsam), `Table.tsx`, `Racket.tsx` + `RacketModel.tsx`, `Ball.tsx` + `BallModel.tsx` (Modell-Dateien sind die austauschbaren Hüllen).
+- Logik: `src/lib/physics.ts`, `spin.ts`, `trajectory.ts`, `timescale.ts`, `coaching.ts`, `constants.ts` (Maße, Zeitlupenwerte).
+- Simulationszustand in Refs innerhalb `useFrame`, kein React-State pro Frame. Fester Physik-Unterschritt, skaliert mit Zeitfaktor.
