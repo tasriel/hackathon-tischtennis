@@ -5,4 +5,8 @@
 - [x] Nächster Ball nur auf Knopfdruck.
 - [x] Ziel-Menü hinter der Platte: Links / Mitte / Rechts.
 - [x] Overlay aufgeräumt (weiß = du, grün = perfekt) mit Schleifen-Animation und 1 s Pause am Treffpunkt.
+- [x] Menüs weiter links/hinten, gerade und größer gestaltet; Schnittwahl startet keinen Ball.
+- [x] Target-Treffer mit Signalton, Aufleuchten und Konfetti.
+- [x] Turnhallenraum mit grauem Boden, Stoffwänden, Balken und Lichtern.
+- [x] Ballfeedback außerhalb des Reviewfensters entfernt; Reviewfenster größer und mit pulsierendem Rahmen.
 - [ ] Test auf der Quest 3 (braucht das Headset).
