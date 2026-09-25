@@ -1,6 +1,6 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useXR, useXRInputSourceState } from "@react-three/xr";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { ARM_REACH, BALL_RADIUS, CONTACT_Z, TABLE } from "@/lib/constants";
 import {
@@ -18,15 +18,13 @@ import { predictReturn } from "@/lib/trajectory";
 import { defaultIdeal, findIdealShot } from "@/lib/idealShot";
 import { settings } from "@/lib/settings";
 import { Menus } from "./LeftMenu";
-import { coach, describe, type ShotMetrics, type ShotResult } from "@/lib/coaching";
+import { type ShotMetrics, type ShotResult } from "@/lib/coaching";
 import { BallModel } from "./BallModel";
 import { RacketModel } from "./RacketModel";
 import { Table } from "./Table";
-import { Label } from "./Label";
 import { SpinOverlay, makeSnapshot, CLIP_BEFORE, CLIP_AFTER, type ContactSnapshot, type ClipFrame } from "./SpinOverlay";
 import { Target } from "./Target";
-
-export type HudState = { result: ShotResult | null; hint: string; info: string; timeScale: number };
+import { GymRoom } from "./GymRoom";
 
 const PHYS_DT = 1 / 240;
 const RING = 180; // ~2 s bei 90 Hz
@@ -38,7 +36,7 @@ const NET_WHITE = new THREE.Color("#eeeeee");
 const GRIP_OFFSET = new THREE.Vector3(0, 0.02, -0.13);
 const GRIP_ROT = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.5, 0, 0));
 
-export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
+export function Simulation() {
   const ball = useMemo(() => makeBall(), []);
   const handVel = useMemo(() => new THREE.Vector3(), []);
   const previewHand = useMemo(() => new THREE.Vector3(), []);
@@ -84,10 +82,6 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
     far: null,
     net: null,
   });
-  const [spinLabel, setSpinLabel] = useState("↺ BACKSPIN");
-  const [hint, setHint] = useState("");
-  const [info, setInfo] = useState("");
-
   const isXR = useXR((s) => s.session != null);
   const controller = useXRInputSourceState("controller", "right");
   const { camera, gl } = useThree();
@@ -118,9 +112,7 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
     s.metrics = null;
     s.flashTarget = "none";
     s.lastSpin = "";
-    setHint("");
-    setInfo("");
-    onHud({ result: null, hint: "", info: "", timeScale: 1 });
+
   };
 
   useEffect(() => {
@@ -163,11 +155,7 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
       result,
     };
     m.result = result;
-    const h = coach(m, settings.serve);
-    const i = s.metrics ? describe(m) : "";
-    setHint(h + "  ·  Trigger / Leertaste = nächster Ball");
-    setInfo(i);
-    onHud({ result, hint: h, info: i, timeScale: 1 });
+
   };
 
   const _prevPos = useMemo(() => new THREE.Vector3(), []);
@@ -338,12 +326,6 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
       if (w > 5) axisRef.current.quaternion.setFromUnitVectors(_up, _tmp.copy(ball.spin).divideScalar(w));
     }
 
-    const st = spinType(ball);
-    if (st !== s.lastSpin && !(s.done && s.hit === false)) {
-      s.lastSpin = st;
-      setSpinLabel(st === "TOPSPIN" ? "↻ TOPSPIN" : st === "BACKSPIN" ? "↺ BACKSPIN" : "OHNE SPIN");
-    }
-
     // ---------- Vorschau ----------
     const showPreview = !s.hit && !s.done && scale < 0.85;
     if (showPreview && ++s.predictTick % 3 === 0) {
@@ -402,6 +384,7 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
 
   return (
     <>
+      <GymRoom />
       <Table ref={tableMats} />
       <group ref={racketGroup}>
         <RacketModel />
@@ -414,14 +397,11 @@ export function Simulation({ onHud }: { onHud: (h: HudState) => void }) {
           <cylinderGeometry args={[0.0015, 0.0015, BALL_RADIUS * 4, 6]} />
           <meshBasicMaterial color="#ffd400" />
         </mesh>
-        <Label text={spinLabel} position={[0, 0.06, 0]} height={0.035} />
       </group>
       <primitive object={previewMesh} />
       <Target ball={ball} enabled={() => sim.current.hit} />
-      <Menus onServeChange={restart} />
+      <Menus />
       <SpinOverlay ball={ball} racket={racket} snap={snap} getScale={() => sim.current.scale} />
-      <Label text={hint} position={[0, TABLE.height + 0.55, -0.4]} height={0.08} />
-      <Label text={info} position={[0, TABLE.height + 0.44, -0.4]} height={0.05} color="#cfd8e3" />
     </>
   );
 }

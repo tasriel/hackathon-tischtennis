@@ -2,13 +2,11 @@ import { Canvas } from "@react-three/fiber";
 import { XR, XROrigin, createXRStore } from "@react-three/xr";
 import { useState } from "react";
 import { PLAYER_Z, TABLE } from "@/lib/constants";
-import { Simulation, type HudState } from "./Simulation";
+import { Simulation } from "./Simulation";
 
 // Zentrale Szenendatei (gemeinsam genutzt – Änderungen absprechen)
 export function XRScene() {
   const [store] = useState(() => createXRStore({ hand: false }));
-  const [hud, setHud] = useState<HudState>({ result: null, hint: "", info: "", timeScale: 1 });
-
   return (
     <div className="fixed inset-0 bg-background">
       <Canvas
@@ -16,33 +14,24 @@ export function XRScene() {
         onCreated={({ camera }) => camera.lookAt(0, TABLE.height, 0)}
         dpr={[1, 1.5]}
       >
-        <color attach="background" args={["#d9d2c3"]} />
-        <fog attach="fog" args={["#d9d2c3", 6, 18]} />
-        <hemisphereLight args={["#fff8ec", "#6b5a48", 1.2]} />
-        <directionalLight position={[2, 5, 3]} intensity={1.6} />
+        <color attach="background" args={["#d8dde3"]} />
+        <fog attach="fog" args={["#d8dde3", 7, 16]} />
+        <hemisphereLight args={["#f8fbff", "#9aa4b1", 1.05]} />
+        <directionalLight position={[2.5, 5, 2.5]} intensity={1.25} />
         <XR store={store}>
           <XROrigin position={[0, 0, PLAYER_Z]} />
-          <Simulation onHud={setHud} />
+          <Simulation />
         </XR>
       </Canvas>
 
       <div className="pointer-events-none fixed inset-x-0 top-0 flex flex-col items-center gap-2 p-4">
         <h1 className="text-lg font-semibold text-foreground">Unterschnitt zurückspielen</h1>
         <p className="max-w-xl text-center text-sm text-muted-foreground">
-          In VR: Schläger rechts, rechter Trigger = nächster Ball, Menüs mit dem linken Controller. Am Desktop: Maus bewegt den Schläger,
-          Mausrad oder W/S neigt ihn, Leertaste = nächster Ball, 1/2/3 = Einspielen, J/K/L = Ziel.
+          In VR: Schläger rechts, rechter Trigger = nächster Ball, Schnitt-Variante und Target links bedienen. Am Desktop: Maus bewegt den Schläger,
+          Mausrad oder W/S neigt ihn, Leertaste = nächster Ball, 1/2/3 = Schnitt, J/K/L = Target.
         </p>
       </div>
 
-      {hud.hint && (
-        <div
-          className={`pointer-events-none fixed inset-x-0 bottom-24 mx-auto w-fit rounded-md px-4 py-2 text-sm font-medium ${
-            hud.result === "success" ? "bg-primary text-primary-foreground" : "bg-destructive text-destructive-foreground"
-          }`}
-        >
-          {hud.hint}
-        </div>
-      )}
 
       <div className="fixed inset-x-0 bottom-6 flex justify-center">
         <button
