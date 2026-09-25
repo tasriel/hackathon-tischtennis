@@ -6,6 +6,7 @@ import { BALL_RADIUS, RACKET_RADIUS } from "@/lib/constants";
 import { racketPointVel, spinType, type BallState, type RacketState } from "@/lib/physics";
 import { DEFAULT_IDEAL, type IdealShot } from "@/lib/idealShot";
 import { Label } from "./Label";
+import { RacketModel } from "./RacketModel";
 
 /** Layer nur für die Nahaufnahme (Pfeile, Texte). Hauptkamera sieht ihn nicht. */
 export const OVERLAY_LAYER = 5;
@@ -109,17 +110,6 @@ function setArrow(a: ReturnType<typeof makeArrow>, origin: THREE.Vector3, vec: T
   a.head.position.y = shaftLen + headLen / 2;
 }
 
-/** Scheibe als Schläger-Geist; Blattnormale = lokale +X (wie der echte Schläger). */
-function makeGhost(color: string, opacity: number) {
-  const g = new THREE.Group();
-  const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthTest: false, side: THREE.DoubleSide });
-  const disc = new THREE.Mesh(new THREE.CylinderGeometry(RACKET_RADIUS, RACKET_RADIUS, 0.006, 32), mat);
-  disc.rotation.z = -Math.PI / 2;
-  disc.renderOrder = 9;
-  g.add(disc);
-  return g;
-}
-
 const arrowLen = (v: number) => Math.min(0.03 + v * 0.05, 0.28);
 const fmt = (n: number, d = 1) => n.toFixed(d).replace(".", ",");
 const grade = (diff: number, ok: number, near: number) => (diff <= ok ? OK : diff <= near ? NEAR : FAR);
@@ -201,8 +191,6 @@ export function SpinOverlay({
     const swing = makeArrow("#2ecc71");
     const ideal = makeArrow("#ffffff", 0.85);
     const friction = makeArrow("#e53935");
-    const userRacket = makeGhost("#2ecc71", 0.35);
-    const idealRacket = makeGhost("#ffffff", 0.3);
     const bar = new THREE.Mesh(
       new THREE.PlaneGeometry(1, 1),
       new THREE.MeshBasicMaterial({ color: "#ffe066", depthTest: false }),
@@ -210,15 +198,19 @@ export function SpinOverlay({
     bar.renderOrder = 12;
     bar.rotation.y = -Math.PI / 2; // zur Kamera (die von -x schaut)
     const root = new THREE.Group();
-    root.add(spin.group, ghost.group, swing.group, ideal.group, friction.group, userRacket, idealRacket);
+    root.add(spin.group, ghost.group, swing.group, ideal.group, friction.group);
     setLayer(root, OVERLAY_LAYER);
     setLayer(bar, OVERLAY_LAYER);
-    return { root, spin, ghost, swing, ideal, friction, userRacket, idealRacket, bar };
+    return { root, spin, ghost, swing, ideal, friction, bar };
   }, []);
 
   const labelsRef = useRef<THREE.Group>(null);
+  const userRacketRef = useRef<THREE.Group>(null);
+  const idealRacketRef = useRef<THREE.Group>(null);
   useLayoutEffect(() => {
     if (labelsRef.current) setLayer(labelsRef.current, OVERLAY_LAYER);
+    if (userRacketRef.current) setLayer(userRacketRef.current, OVERLAY_LAYER);
+    if (idealRacketRef.current) setLayer(idealRacketRef.current, OVERLAY_LAYER);
   });
 
   const panel = useRef<THREE.Mesh>(null);
@@ -282,15 +274,15 @@ export function SpinOverlay({
     setArrow(helpers.ideal, _v, _d, arrowLen(ideal.speed), 0.003);
 
     // ---- Schläger-Geister (nur in der Wiederholung) ----
-    helpers.userRacket.visible = replay;
-    helpers.idealRacket.visible = replay;
-    if (replay) {
-      helpers.userRacket.position.copy(s.racketPos);
-      helpers.userRacket.quaternion.copy(s.racketQuat);
+    if (userRacketRef.current) userRacketRef.current.visible = replay;
+    if (idealRacketRef.current) idealRacketRef.current.visible = replay;
+    if (replay && userRacketRef.current && idealRacketRef.current) {
+      userRacketRef.current.position.copy(s.racketPos);
+      userRacketRef.current.quaternion.copy(s.racketQuat);
       const o = THREE.MathUtils.degToRad(ideal.openDeg);
-      helpers.idealRacket.position.copy(s.racketPos);
+      idealRacketRef.current.position.copy(s.racketPos);
       // Blattnormale +X → Richtung Ball (−z, nach oben geöffnet)
-      helpers.idealRacket.quaternion.setFromUnitVectors(
+      idealRacketRef.current.quaternion.setFromUnitVectors(
         new THREE.Vector3(1, 0, 0),
         _v.set(0, Math.sin(o), -Math.cos(o)),
       );
@@ -389,6 +381,12 @@ export function SpinOverlay({
     <>
       <primitive object={helpers.root} />
       <primitive object={helpers.bar} />
+      <group ref={userRacketRef} visible={false}>
+        <RacketModel tint="#2ecc71" opacity={0.35} />
+      </group>
+      <group ref={idealRacketRef} visible={false}>
+        <RacketModel tint="#ffffff" opacity={0.3} />
+      </group>
       <group ref={labelsRef}>
         <Label text={texts.title} position={[0, 0.205, 0]} height={0.02} color="#ffe066" />
         <Label text={texts.angle} position={[0, 0.18, -0.08]} height={0.017} color={texts.angleC} />

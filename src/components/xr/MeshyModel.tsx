@@ -34,7 +34,7 @@ export function MeshyModel({
       child.receiveShadow = true;
       if (tint === undefined && opacity === 1) return;
       const source = Array.isArray(child.material) ? child.material : [child.material];
-      child.material = source.map((material) => {
+      const materials = source.map((material) => {
         const clone = material.clone();
         if (clone instanceof THREE.MeshStandardMaterial) {
           if (tint !== undefined) clone.color.set(tint);
@@ -44,7 +44,7 @@ export function MeshyModel({
         }
         return clone;
       });
-      if (child.material.length === 1) child.material = child.material[0] as THREE.Material;
+      child.material = materials.length === 1 ? materials[0] ?? child.material : materials;
     });
     return copy;
   }, [opacity, scene, tint]);
