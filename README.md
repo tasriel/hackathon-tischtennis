@@ -1,8 +1,8 @@
 # Hackathon_26 – AI × XR Table Tennis Learning
 
-![](docs/demo-snippet.gif)
+![](assets/demo-snippet.gif)
 
-**[Demo-Video öffnen](docs/demo.mp4)** · [Anwendung öffnen](https://hackathon-tt.lovable.app/)
+**[Demo-Video öffnen](assets/demo.mp4)** · [Anwendung öffnen](https://hackathon-tt.lovable.app/)
 
 ## Idee
 
