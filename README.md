@@ -1,6 +1,6 @@
 # Hackathon_26 – AI × XR Table Tennis Learning
 
-[![Demo des XR-Tischtennis-Lernprototyps](https://hackathon-tt.lovable.app/__l5e/assets-v1/80398cea-3a70-426d-9d4c-aaba47bd7ce3/hackathon-tt-demo.gif)](https://hackathon-tt.lovable.app/__l5e/assets-v1/f3a702f2-73b1-41d3-8d54-636e078f5459/hackathon-tt-demo.mp4)
+[![Kurze Demo eines Schlages im XR-Tischtennis-Lernprototyp](docs/schlag-demo.gif)](https://hackathon-tt.lovable.app/__l5e/assets-v1/f3a702f2-73b1-41d3-8d54-636e078f5459/hackathon-tt-demo.mp4)
 
 **[Demo-Video öffnen](https://hackathon-tt.lovable.app/__l5e/assets-v1/f3a702f2-73b1-41d3-8d54-636e078f5459/hackathon-tt-demo.mp4)** · [Anwendung öffnen](https://hackathon-tt.lovable.app/)
 
