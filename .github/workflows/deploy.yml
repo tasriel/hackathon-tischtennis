@@ -34,3 +34,4 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           server-dir: spincorrect.icken.eu/
           local-dir: .output/public/
+          protocol: ftps
