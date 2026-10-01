@@ -1,0 +1,36 @@
+name: Build and Deploy to Netcup
+
+on:
+  push:
+    branches:
+      - main  # oder master, je nach deinem Standard-Branch
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Bun installieren (dieses Projekt nutzt bun.lock)
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # Abhängigkeiten installieren und App bauen
+      - name: Install dependencies & Build
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
+      # Gebauten Web-Ordner (.output/public) via FTP auf Netcup übertragen
+      - name: Deploy to Netcup via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: httpdocs/
+          local-dir: .output/public/
