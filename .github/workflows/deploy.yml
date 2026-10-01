@@ -25,15 +25,13 @@ jobs:
           bun install --frozen-lockfile
           bun run build
 
-      # Gebauten Web-Ordner (.output/public) via FTP auf Netcup übertragen
-      - name: Deploy to Netcup via SFTP
-        uses: easingthemes/ssh-deploy@v5.1.0
+      # Gebauten Web-Ordner (.output/public) via FTPS auf Netcup übertragen
+      - name: Deploy to Netcup via FTPS
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          SSH_PRIVATE_KEY: "" # Bleibt leer, wenn Passwort genutzt wird
-          REMOTE_HOST: ${{ secrets.FTP_SERVER }}
-          REMOTE_USER: ${{ secrets.FTP_USERNAME }}
-          REMOTE_PORT: "22"
-          PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          SOURCE: ".output/public/"
-          TARGET: "spincorrect.icken.eu/"
-          EXCLUDE: "/.git*, /node_modules/"
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          local-dir: .output/public/
+          server-dir: spincorrect.icken.eu/
