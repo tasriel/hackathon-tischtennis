@@ -1,6 +1,6 @@
-import racketAsset from "@/assets/racket-quality.glb.asset.json";
 import { SceneModel } from "./SceneModel";
 
+const RACKET_MODEL_URL: string = "/models/racket-quality.glb";
 /**
  * Austauschbare Schläger-Hülle. Konvention:
  * - Blattmitte im Ursprung, Blattnormale = lokale X-Achse,
@@ -11,7 +11,7 @@ import { SceneModel } from "./SceneModel";
 export function RacketModel() {
   return (
     <SceneModel
-      url={racketAsset.url}
+      url={RACKET_MODEL_URL}
       position={[0, 0, 0.063]}
       rotation={[-Math.PI / 2, Math.PI / 2, 0]}
       scale={0.158}

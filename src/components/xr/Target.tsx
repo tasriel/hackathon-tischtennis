@@ -1,11 +1,11 @@
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef, type RefObject } from "react";
 import * as THREE from "three";
-import targetAsset from "@/assets/target-quality.glb.asset.json";
 import { BALL_RADIUS, RACKET_RADIUS, TABLE } from "@/lib/constants";
 import { settings, TARGET_X } from "@/lib/settings";
 import { SceneModel } from "./SceneModel";
 
+const TARGET_MODEL_URL: string = "/models/target-quality.glb";
 const TARGET_DIAMETER = RACKET_RADIUS * 4;
 const TARGET_THICKNESS = 0.012;
 const TARGET_Z = -TABLE.length / 2 + 0.38;
@@ -119,7 +119,7 @@ export function Target({ impact }: { impact: RefObject<TargetImpact> }) {
   return (
     <group ref={root} rotation={[-Math.PI / 2, 0, 0]}>
       <group ref={model}>
-        <SceneModel url={targetAsset.url} scale={[scale, scale, thicknessScale]} />
+        <SceneModel url={TARGET_MODEL_URL} scale={[scale, scale, thicknessScale]} />
       </group>
       <mesh ref={glow} position={[0, 0, 0.01]}>
         <ringGeometry args={[TARGET_DIAMETER * 0.5, TARGET_DIAMETER * 0.78, 48]} />

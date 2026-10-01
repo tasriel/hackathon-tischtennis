@@ -1,10 +1,11 @@
 import { useTexture } from "@react-three/drei";
 import { forwardRef, useEffect, useMemo } from "react";
 import * as THREE from "three";
-import tableAsset from "@/assets/table-quality.glb.asset.json";
-import netTextureAsset from "@/assets/net-texture.png.asset.json";
 import { TABLE } from "@/lib/constants";
 import { SceneModel } from "./SceneModel";
+
+const TABLE_MODEL_URL: string = "/models/table-quality.glb";
+const NET_TEXTURE_URL: string = "/textures/net-texture.png";
 
 /** Maßstäblicher Tisch und leichtes Textur-Netz; Physik bleibt an TABLE gebunden. */
 export const Table = forwardRef<{ far: THREE.MeshStandardMaterial | null }>(
@@ -13,7 +14,7 @@ export const Table = forwardRef<{ far: THREE.MeshStandardMaterial | null }>(
       far: THREE.MeshStandardMaterial | null;
     }>;
     const top = TABLE.height - 0.015;
-    const source = useTexture(netTextureAsset.url);
+    const source = useTexture(NET_TEXTURE_URL);
     const netTexture = useMemo(() => {
       const texture = source.clone();
       texture.colorSpace = THREE.SRGBColorSpace;
@@ -29,7 +30,7 @@ export const Table = forwardRef<{ far: THREE.MeshStandardMaterial | null }>(
       <group>
         {/* Lange Modellachse auf Z; Modelloberkante auf physikalischer Plattenhöhe. */}
         <SceneModel
-          url={tableAsset.url}
+          url={TABLE_MODEL_URL}
           position={[0, TABLE.height - 0.262611 * (TABLE.length / 1.89957), 0]}
           rotation={[0, Math.PI / 2, 0]}
           scale={TABLE.length / 1.89957}
