@@ -1,0 +1,10 @@
+RewriteEngine On
+
+# HTTPS erzwingen (zwingend nötig für WebXR / Quest 3)
+RewriteCond %{HTTPS} off
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Single Page App Routing (falls Unterseiten aufgerufen werden)
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.html [L]
