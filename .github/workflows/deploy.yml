@@ -26,12 +26,14 @@ jobs:
           bun run build
 
       # Gebauten Web-Ordner (.output/public) via FTP auf Netcup übertragen
-      - name: Deploy to Netcup via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      - name: Deploy to Netcup via SFTP
+        uses: easingthemes/ssh-deploy@v5.1.0
         with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          server-dir: spincorrect.icken.eu/
-          local-dir: .output/public/
-          protocol: ftps
+          SSH_PRIVATE_KEY: "" # Bleibt leer, wenn Passwort genutzt wird
+          REMOTE_HOST: ${{ secrets.FTP_SERVER }}
+          REMOTE_USER: ${{ secrets.FTP_USERNAME }}
+          REMOTE_PORT: "22"
+          PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          SOURCE: ".output/public/"
+          TARGET: "spincorrect.icken.eu/"
+          EXCLUDE: "/.git*, /node_modules/"
