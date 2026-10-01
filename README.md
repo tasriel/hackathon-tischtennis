@@ -2,7 +2,7 @@
 
 ![](assets/demo-snippet.gif)
 
-**[Demo-Video öffnen](assets/demo.mp4)** · [Anwendung öffnen](https://hackathon-tt.lovable.app/)
+**[🎬 Demo-Video](assets/demo.mp4) · [🎮 Anwendung öffnen (self-hosted)](https://spincorrect.icken.eu)** · [🎮 Anwendung öffnen (Lovable)](https://hackathon-tt.lovable.app/)
 
 ## Idee
 
