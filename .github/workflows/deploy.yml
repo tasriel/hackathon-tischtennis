@@ -1,4 +1,4 @@
-name: Build and Deploy to Netcup
+name: Build and publish to deploy branch
 
 on:
   push:
@@ -8,6 +8,8 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # darf den deploy-Branch schreiben
 
     steps:
       - name: Checkout Repository
@@ -25,19 +27,11 @@ jobs:
           bun install --frozen-lockfile
           bun run build
 
-      # Gebauten Web-Ordner (.output/public) via FTPS (lftp) auf Netcup übertragen
-      - name: Deploy to Netcup via FTPS
-        env:
-          FTP_SERVER: ${{ secrets.FTP_SERVER }}
-          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-          LFTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-        run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq lftp
-          lftp --env-password -u "$FTP_USERNAME" "ftp://$FTP_SERVER" -e "
-            set cmd:fail-exit yes;
-            set net:max-retries 3;
-            set ftp:ssl-force yes;
-            set ftp:ssl-protect-data yes;
-            mirror --reverse --verbose .output/public/ spincorrect.icken.eu/;
-            bye
-          "
+      # Gebauten Web-Ordner (.output/public) in den Branch "deploy" schreiben.
+      # Plesk (Netcup) holt diesen Branch per Webhook ab und legt ihn in den Dokumentenstamm.
+      - name: Publish build to deploy branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .output/public
+          publish_branch: deploy
