@@ -8,6 +8,22 @@
 
 Ein interaktiver Lernmoment für Meta Quest 3: Einen Ball mit **Unterschnitt zurückspielen** und dabei unmittelbar sehen, wie ankommender Spin, Schlägerwinkel und Schwung den neuen Spin und die Flugbahn verändern. Im Mittelpunkt steht nicht ein vollständiges Tischtennisspiel, sondern das Verstehen und bewusste Anpassen eines Schlags. Eine Desktop-Ansicht ermöglicht das Ausprobieren ohne VR-Brille.
 
+## Deployment
+
+Die Anwendung läuft unter [spincorrect.icken.eu](https://spincorrect.icken.eu) auf einem Netcup-Webhosting.
+
+**Ablauf**
+
+1. Ein Push auf `main` startet den Workflow `.github/workflows/deploy.yml`.
+2. Der Workflow baut die Anwendung mit `bun run build` und schreibt den Inhalt von `.output/public` in den Branch `deploy`.
+3. GitHub benachrichtigt Plesk über einen Webhook. Plesk holt den Branch `deploy` ab und legt ihn in den Dokumentenstamm der Subdomain.
+
+**Hinweise**
+
+- Der Branch `deploy` enthält ausschließlich Build-Ergebnisse und wird vom Workflow geschrieben. Bitte nicht von Hand bearbeiten.
+- Auf GitHub liegen keine Zugangsdaten zum Server. Die Verbindung geht vom Server aus (Plesk → GitHub).
+- 3D-Modelle und Texturen liegen unter `public/models` und `public/textures` im Repository.
+
 ## Funktionen
 
 ### Übung und Steuerung
