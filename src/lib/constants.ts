@@ -58,7 +58,7 @@ export type Rubber = {
 export const RUBBERS: Record<RubberType, Rubber> = {
   smooth: {
     label: "Glatt", stroke: "Topspin", grip: 0.55, restitution: 0.8, spinKeep: 1, color: "#c0392b",
-    open: [-35, -5, 5], speed: [2.5, 5.5, 0.5], dir: [10, 50, 10], typ: { open: -20, speed: 4, dir: 30 }, wantSpin: "TOPSPIN",
+    open: [-35, 20, 5], speed: [2.5, 5.5, 0.5], dir: [10, 70, 10], typ: { open: -20, speed: 4, dir: 30 }, wantSpin: "TOPSPIN",
   },
   longPips: {
     label: "lange Noppe", stroke: "Block (Spin-Umkehr)", grip: 0.08, restitution: 0.55, spinKeep: 0.9, color: "#1f2937",
@@ -69,7 +69,7 @@ export const RUBBERS: Record<RubberType, Rubber> = {
     open: [-20, 15, 5], speed: [2, 5.5, 0.5], dir: [-5, 20, 5], typ: { open: -5, speed: 3.5, dir: 5 }, wantSpin: null,
   },
   anti: {
-    label: "Anti", stroke: "passiver Block", grip: 0.03, restitution: 0.45, spinKeep: 0.35, color: "#a16207",
-    open: [-5, 40, 5], speed: [0.2, 1.4, 0.3], dir: [-15, 5, 10], typ: { open: 10, speed: 0.5, dir: 0 }, wantSpin: null,
+    label: "Anti", stroke: "passiver Block", grip: 0.03, restitution: 0.5, spinKeep: 0.35, color: "#a16207",
+    open: [-5, 50, 5], speed: [0.2, 2.6, 0.3], dir: [-15, 5, 10], typ: { open: 10, speed: 0.5, dir: 0 }, wantSpin: null,
   },
 };
