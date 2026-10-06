@@ -18,6 +18,7 @@ export type BallState = {
   pos: THREE.Vector3;
   vel: THREE.Vector3;
   spin: THREE.Vector3; // Winkelgeschwindigkeit rad/s
+  nearBounceDamping?: { speed: number; spin: number; friction: number };
 };
 
 export type RacketState = {
@@ -63,6 +64,7 @@ export function makeBall(): BallState {
 }
 
 export function resetServe(b: BallState, type: ServeType = "backspin") {
+  b.nearBounceDamping = undefined;
   const sv = SERVES[type];
   b.pos.set(...sv.pos);
   b.vel.set(...sv.vel);
@@ -70,7 +72,7 @@ export function resetServe(b: BallState, type: ServeType = "backspin") {
 }
 
 export function cloneBall(b: BallState): BallState {
-  return { pos: b.pos.clone(), vel: b.vel.clone(), spin: b.spin.clone() };
+  return { pos: b.pos.clone(), vel: b.vel.clone(), spin: b.spin.clone(), nearBounceDamping: b.nearBounceDamping };
 }
 
 const _a = new THREE.Vector3();
@@ -110,6 +112,7 @@ export function stepBall(b: BallState, dt: number): TableEvent {
     Math.abs(b.pos.x) <= TABLE.width / 2 && Math.abs(b.pos.z) <= TABLE.length / 2;
   if (onTable && b.vel.y < 0 && b.pos.y <= TABLE.height + BALL_RADIUS && b.pos.y > TABLE.height - 0.05) {
     b.pos.y = TABLE.height + BALL_RADIUS;
+    const damping = b.pos.z > 0 ? b.nearBounceDamping : undefined;
     const vyIn = -b.vel.y;
     b.vel.y = vyIn * TABLE_RESTITUTION;
     // Reibung am Kontaktpunkt (Coulomb-begrenzt) -> Spin beeinflusst den Absprung
@@ -119,11 +122,19 @@ export function stepBall(b: BallState, dt: number): TableEvent {
     const slip = _vc.length();
     if (slip > 1e-6) {
       // max. Reibungsimpuls: mu * Normalimpuls; höchstens bis Rollen (Hohlkugel: 2/5)
-      const dvMag = Math.min(TABLE_FRICTION * (1 + TABLE_RESTITUTION) * vyIn, 0.4 * slip);
+      const dvMag = Math.min((damping?.friction ?? TABLE_FRICTION) * (1 + TABLE_RESTITUTION) * vyIn, 0.4 * slip);
       _dv.copy(_vc).multiplyScalar(-dvMag / slip);
       b.vel.add(_dv);
       _t.crossVectors(_r, _dv).multiplyScalar(3 / (2 * BALL_RADIUS * BALL_RADIUS));
       b.spin.add(_t);
+    }
+    if (damping) {
+      // Explizite Anti-Lernhilfe: langsam und fast spinlos nach dem Aufsprung.
+      // Schwerkraft bleibt aktiv; der Ball schwebt nicht künstlich.
+      b.vel.x *= damping.speed;
+      b.vel.z *= damping.speed;
+      b.spin.multiplyScalar(damping.spin);
+      b.nearBounceDamping = undefined;
     }
     return b.pos.z < 0 ? "table-far" : "table-near";
   }
@@ -199,6 +210,7 @@ export function collideRacket(
   if (vn >= 0) return false; // bewegt sich schon weg
 
   lastContact.spinBefore.copy(b.spin);
+  b.nearBounceDamping = undefined;
   lastContact.velBefore.copy(b.vel);
   const relT = _vt.copy(_rel).addScaledVector(_n, -vn);
   // Kontaktpunktgeschwindigkeit inkl. Spin
