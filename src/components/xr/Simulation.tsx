@@ -369,7 +369,10 @@ export function Simulation() {
       _prevPos.copy(ball.pos);
       const ev = stepBall(ball, PHYS_DT);
       if (!s.hit) {
-        if (ev === "table-near") s.bouncedNear = true;
+        if (ev === "table-near") {
+          if (s.bouncedNear) finish("own");
+          else s.bouncedNear = true;
+        }
         const a = steps / Math.max(planned, 1);
         stepR.pos.lerpVectors(_lastRacket, racket.pos, a);
         stepR.normal.lerpVectors(_lastNormal, racket.normal, a).normalize();
@@ -440,10 +443,7 @@ export function Simulation() {
           if (s.phase === "opp" && s.plan) s.flashTarget = "success";
           else finish("success");
         }
-        else if (ev === "table-near") {
-          if (!s.hit) s.bouncedNear = true;
-          else finish("own");
-        }
+        else if (ev === "table-near") finish("own");
         else if (ev === "floor" || ball.pos.z < -TABLE.length / 2 - 0.3 || ball.pos.z > 3) finish("out");
       }
     }
