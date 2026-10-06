@@ -3,7 +3,7 @@ import { useXR, useXRInputSourceState } from "@react-three/xr";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { ARM_REACH, CONTACT_Z, RUBBERS, TABLE, type ServeType } from "@/lib/constants";
-import { hitWithRubber, planOpponent, type OpponentPlan } from "@/lib/opponent";
+import { applyOpponentHit, planOpponent, type OpponentPlan } from "@/lib/opponent";
 import {
   collideRacket,
   makeBall,
@@ -47,10 +47,27 @@ function BallSpinLabel({ ball }: { ball: ReturnType<typeof makeBall> }) {
     if (next !== k) setK(next);
   });
   const d = SPIN_DE[k];
-  return <Label text={d?.t ?? ""} color={d?.c ?? "#ffffff"} bg="rgba(10,10,14,0.7)" height={0.045} position={[0, 0.07, 0]} />;
+  return (
+    <>
+      <BallSpeedLabel ball={ball} />
+      <Label text={d?.t ?? ""} color={d?.c ?? "#ffffff"} bg="rgba(10,10,14,0.7)" height={0.045} position={[0, 0.07, 0]} />
+    </>
+  );
+}
+
+/** Nur zu Testzwecken: Ballgeschwindigkeit in km/h über dem Spin-Text. */
+function BallSpeedLabel({ ball }: { ball: ReturnType<typeof makeBall> }) {
+  const [t, setT] = useState("");
+  useFrame(() => {
+    const next = `${(ball.vel.length() * 3.6).toFixed(1).replace(".", ",")} km/h`;
+    if (next !== t) setT(next);
+  });
+  return <Label text={t} color="#fde68a" bg="rgba(10,10,14,0.7)" height={0.035} position={[0, 0.115, 0]} />;
 }
 
 const PHYS_DT = 1 / 240;
+const _c2 = new THREE.Vector3();
+const _Yup = new THREE.Vector3(0, 1, 0);
 const RING = 180; // ~2 s bei 90 Hz
 const RESULT_COLORS = { success: "#2e9e4f", fail: "#c0392b" } as const;
 const TABLE_BLUE = new THREE.Color("#1d4f8a");
@@ -168,7 +185,7 @@ export function Simulation() {
   const opponentHit = () => {
     const s = sim.current;
     const plan = s.plan!;
-    hitWithRubber(ball, plan.normal, plan.vel, plan.rubber);
+    applyOpponentHit(ball, plan);
     _prevPos.copy(ball.pos);
     lastTest.pos.copy(racket.pos);
     lastTest.normal.copy(racket.normal);
@@ -244,6 +261,7 @@ export function Simulation() {
   const _oppN = useMemo(() => new THREE.Vector3(), []);
   const _oppP = useMemo(() => new THREE.Vector3(), []);
   const _oppA = useMemo(() => new THREE.Vector3(), []);
+  const _wristN = useMemo(() => new THREE.Vector3(), []);
   const s0 = useMemo(() => ({ clipPending: false }), []);
   const ring = useMemo<ClipFrame[]>(
     () => Array.from({ length: RING }, () => ({ t: 0, pos: new THREE.Vector3(), quat: new THREE.Quaternion(), ball: new THREE.Vector3(), spin: new THREE.Vector3() })),
@@ -374,6 +392,14 @@ export function Simulation() {
           sn.dirDeg = THREE.MathUtils.radToDeg(Math.atan2(rv.y, Math.max(-rv.z, 1e-3)));
           sn.wrist = racket.angVel.length();
           sn.scale = scale;
+          if (s.phase === "p2") {
+            // Ideal-Schlag nach dem tatsächlichen Spin direkt vor dem Treffer
+            const sb = lastContact.spinBefore;
+            const vb = _tmp.copy(lastContact.velBefore).setY(0).normalize();
+            const top = _c2.crossVectors(sb, _Yup).dot(vb);
+            const side = Math.abs(sb.y) > Math.hypot(sb.x, sb.z) * 0.8 && sb.length() > 5;
+            sn.kind = side ? "sidespin" : top < -8 ? "backspin" : "topspin";
+          }
           sn.ideal = findIdealShot(lastContact.point, lastContact.velBefore, lastContact.spinBefore, sn.kind);
           s0.clipPending = true;
           sn.explain = explainContact(s.metrics);
@@ -449,17 +475,41 @@ export function Simulation() {
       const tc = plan ? s.oppClock - plan.steps * PHYS_DT : -10;
       _oppN.copy(oppRest.normal);
       _oppP.copy(oppRest.pos);
-      if (plan && (s.phase === "opp" || tc < 1)) {
+      if (plan && (s.phase === "opp" || tc < 1.2)) {
+        // Ganzheitliche Bewegung: Ruhe → Ausholen → Treffer → Ausschwung → Ruhe.
+        // Handgelenk: Blatt dreht sich um die Querachse mit (Ausholen +, Ausschwung −).
         const sp = plan.vel.length();
         _tmp.copy(plan.vel).normalize();
-        const back = Math.min(0.3, 0.12 + sp * 0.05);
-        const at = _oppA.copy(plan.point).addScaledVector(_tmp, THREE.MathUtils.clamp(tc * sp * 1.5, -back, 0.22));
-        // aus der Ruheposition einblenden bzw. danach zurückführen
-        const w = tc < 0 ? THREE.MathUtils.smoothstep(tc, -0.7, -0.35) : 1 - THREE.MathUtils.smoothstep(tc, 0.45, 1);
+        const back = Math.min(0.32, 0.12 + sp * 0.05);
+        const follow = Math.min(0.3, 0.1 + sp * 0.06);
+        const axis = _oppA.crossVectors(_tmp, _Yup).normalize();
+        let off: number, wrist: number, w: number;
+        if (tc < -0.2) {
+          // Anlauf zur Ausholposition
+          w = THREE.MathUtils.smoothstep(tc, -0.75, -0.2);
+          off = -back;
+          wrist = 0.45;
+        } else if (tc < 0) {
+          const k = THREE.MathUtils.smoothstep(tc, -0.2, 0);
+          w = 1;
+          off = -back * (1 - k);
+          wrist = 0.45 * (1 - k);
+        } else if (tc < 0.18) {
+          const k = THREE.MathUtils.smoothstep(tc, 0, 0.18);
+          w = 1;
+          off = follow * k;
+          wrist = -0.4 * k;
+        } else {
+          w = 1 - THREE.MathUtils.smoothstep(tc, 0.3, 1.1);
+          off = follow;
+          wrist = -0.4;
+        }
+        const at = _c2.copy(plan.point).addScaledVector(_tmp, off);
         _oppP.lerp(at, w);
-        _oppN.lerp(plan.normal, w).normalize();
+        _wristN.copy(plan.normal).applyAxisAngle(axis, wrist);
+        _oppN.lerp(_wristN, w).normalize();
       }
-      og.position.lerp(_oppP, 1 - Math.exp(-30 * dt));
+      og.position.lerp(_oppP, 1 - Math.exp(-40 * dt));
       _q.setFromUnitVectors(_X, _oppN);
       og.quaternion.slerp(_q, 1 - Math.exp(-30 * dt));
       oppFace.current?.color.set(RUBBERS[settings.rubber].color);

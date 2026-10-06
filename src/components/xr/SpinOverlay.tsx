@@ -506,9 +506,10 @@ export function SpinOverlay({
     const p = panel.current;
     if (!p) return;
     if (isXR) {
-      p.position.set(-0.58, 1.34, 1.18);
-      p.rotation.set(0, 0.55, 0);
-      p.scale.set(0.62, 0.35, 1);
+      // neben der Platte links, zum Spieler gedreht, groß genug zum Lesen
+      p.position.set(-1.3, 1.25, 0.85);
+      p.rotation.set(0, 0.85, 0);
+      p.scale.set(0.8, 0.45, 1);
     } else {
       const pc = camera as THREE.PerspectiveCamera;
       const d = 0.5;
