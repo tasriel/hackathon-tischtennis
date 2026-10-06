@@ -19,6 +19,7 @@
 | Anti | frontaler Schupf, Schläger relativ stark geschlossen | frontaler Schupf, Schläger offener |
 
 - Noppen: deutlich langsamer, Ball "tropft ab".
+- Kurze Noppe: dreht den ankommenden Spin nie um, sondern schwächt ihn nur ab. Je stärker der Ball in den Belag eindringt (höhere Aufprallgeschwindigkeit), desto mehr Spin wird entfernt; bei sehr starkem Eindringen ist der Schnitt ganz aufgehoben. Der eigene Spin aus der Schlagbewegung kommt nur schwach hinzu.
 - Anti: Ball fast ohne Tempo und praktisch ohne Spin; nach dem Aufsprung bleibt er nahezu in der Luft stehen.
 
 ## Sichtbare Gegner-Bewegung
