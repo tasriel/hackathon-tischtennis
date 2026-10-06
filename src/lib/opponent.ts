@@ -1,99 +1,125 @@
 import * as THREE from "three";
-import { RUBBERS, TABLE, type RubberType } from "./constants";
+import { BALL_RADIUS, DRAG, GRAVITY, MAGNUS, RUBBERS, TABLE, type RubberType } from "./constants";
 import { cloneBall, collideRacket, spinType, stepBall, type BallState, type RacketState } from "./physics";
 
 export const OPP_DT = 1 / 240;
-
+export const FOREHAND_X = 0.38;
 export type OpponentPlan = {
-  /** Physikschritte ab dem Aufsprung auf der Gegnerseite bis zum Treffer */
   steps: number;
   point: THREE.Vector3;
   normal: THREE.Vector3;
-  vel: THREE.Vector3; // Schlägergeschwindigkeit (Simulationszeit)
+  vel: THREE.Vector3;
   rubber: RubberType;
+  stroke: string;
+  outgoingVel: THREE.Vector3;
+  outgoingSpin: THREE.Vector3;
+  assisted: boolean;
 };
-
-const _prev = new THREE.Vector3();
 const racket: RacketState = {
-  pos: new THREE.Vector3(),
-  normal: new THREE.Vector3(),
-  vel: new THREE.Vector3(),
-  angVel: new THREE.Vector3(),
-  quat: new THREE.Quaternion(),
-  timeScale: 1,
+  pos: new THREE.Vector3(), normal: new THREE.Vector3(), vel: new THREE.Vector3(),
+  angVel: new THREE.Vector3(), quat: new THREE.Quaternion(), timeScale: 1,
 };
-
-/** Gegner-Schläger trifft den Ball an seinem aktuellen Ort. Ball fliegt Richtung −z an. */
 export function hitWithRubber(b: BallState, normal: THREE.Vector3, vel: THREE.Vector3, rubber: RubberType): boolean {
   const point = b.pos.clone();
   racket.pos.copy(point);
   racket.normal.copy(normal);
   racket.vel.copy(vel);
-  _prev.copy(point).addScaledVector(b.vel, -OPP_DT * 3);
+  const prev = point.clone().addScaledVector(normal, BALL_RADIUS * 2);
   b.pos.copy(point).addScaledVector(normal, -0.001);
-  return collideRacket(b, _prev, racket, undefined, RUBBERS[rubber]);
+  return collideRacket(b, prev, racket, undefined, RUBBERS[rubber]);
 }
 
-/**
- * Plant den Lehrball des Gegners: sucht den Trefferpunkt nach dem Aufsprung und die
- * Belag-typische Bewegung, die sicher mittig-tief auf der Spielerseite landet.
- * Kein "Siegball" – Abweichung von der typischen Bewegung wird bestraft.
- */
-export function planOpponent(ballAfterBounce: BallState, rubber: RubberType): OpponentPlan | null {
-  const spec = RUBBERS[rubber];
-  const b = cloneBall(ballAfterBounce);
-  let steps = 0;
-  let ok = false;
-  for (; steps < 480; steps++) {
-    const ev = stepBall(b, OPP_DT);
-    if (ev && ev !== "table-far") return null;
-    const pastEnd = b.pos.z < -TABLE.length / 2 - 0.2;
-    if ((b.vel.y < 0 && b.pos.y < TABLE.height + 0.3) || pastEnd) {
-      ok = b.pos.y > TABLE.height + 0.04;
-      steps++;
-      break;
-    }
+/** Airborne integration matches stepBall, without premature table/net clipping during aiming. */
+function flightEnd(point: THREE.Vector3, velocity: THREE.Vector3, spin: THREE.Vector3, time: number) {
+  const p = point.clone(), v = velocity.clone(), w = spin.clone(), a = new THREE.Vector3();
+  const count = Math.ceil(time / OPP_DT), dt = time / count;
+  for (let i = 0; i < count; i++) {
+    a.crossVectors(w, v).multiplyScalar(MAGNUS).addScaledVector(v, -DRAG * v.length());
+    a.y += GRAVITY;
+    v.addScaledVector(a, dt); p.addScaledVector(v, dt); w.multiplyScalar(Math.exp(-0.05 * dt));
   }
-  if (!ok) return null;
-  const contact = cloneBall(b);
-  const n = new THREE.Vector3();
-  const v = new THREE.Vector3();
-  const t = cloneBall(b);
-  let best: OpponentPlan | null = null;
-  let bestScore = -Infinity;
-  for (let open = spec.open[0]; open <= spec.open[1]; open += spec.open[2]) {
-    const o = THREE.MathUtils.degToRad(open);
-    n.set(0, Math.sin(o), Math.cos(o));
-    for (let speed = spec.speed[0]; speed <= spec.speed[1] + 0.01; speed += spec.speed[2]) {
-      for (let dir = spec.dir[0]; dir <= spec.dir[1]; dir += spec.dir[2]) {
-        const d = THREE.MathUtils.degToRad(dir);
-        v.set(0, Math.sin(d), Math.cos(d)).multiplyScalar(speed);
-        t.pos.copy(contact.pos);
-        t.vel.copy(contact.vel);
-        t.spin.copy(contact.spin);
-        if (!hitWithRubber(t, n, v, rubber)) continue;
-        const outSpin = spinType(t);
-        let gap = Infinity;
-        let score = -Infinity;
-        for (let i = 0; i < 480; i++) {
-          const pz = t.pos.z;
-          const e = stepBall(t, OPP_DT);
-          if (Math.sign(pz) !== Math.sign(t.pos.z)) gap = t.pos.y - (TABLE.height + TABLE.netHeight);
-          if (!e) continue;
-          if (e === "table-near") {
-            score = 10 - Math.abs(t.pos.z - 0.85) * 5 - Math.abs(t.pos.x) * 2;
-            score += Math.min(gap, 0.1) * 30 - Math.max(0, gap - 0.3) * 10;
-            if (spec.wantSpin && outSpin === spec.wantSpin) score += 3;
-            score -= Math.abs(open - spec.typ.open) / 20 + Math.abs(speed - spec.typ.speed) / 1.5 + Math.abs(dir - spec.typ.dir) / 20;
-          }
-          break;
-        }
-        if (score > bestScore) {
+  return p;
+}
+function aim(point: THREE.Vector3, spin: THREE.Vector3, time: number) {
+  const target = new THREE.Vector3(FOREHAND_X, TABLE.height + BALL_RADIUS, 1.05);
+  const v = target.clone().sub(point).divideScalar(time);
+  v.y -= GRAVITY * time / 2;
+  for (let i = 0; i < 12; i++) v.addScaledVector(target.clone().sub(flightEnd(point, v, spin, time)), 0.8 / time);
+  return v;
+}
+function playable(point: THREE.Vector3, vel: THREE.Vector3, spin: THREE.Vector3) {
+  const b = { pos: point.clone(), vel: vel.clone(), spin: spin.clone() };
+  let clearance = 0;
+  for (let i = 0; i < 600; i++) {
+    const z = b.pos.z;
+    const ev = stepBall(b, OPP_DT);
+    if (z < 0 && b.pos.z >= 0) clearance = b.pos.y - TABLE.height - TABLE.netHeight;
+    if (ev === "table-near") return clearance > 0.08 && b.pos.x > 0.15 && b.pos.x < 0.65;
+    if (ev) return false;
+  }
+  return false;
+}
+
+/** Every valid far-side bounce gets a plan. Rubber contact generates spin; a bounded
+ * teaching aim makes the return accessible rather than trying to win the rally. */
+export function planOpponent(ballAfterBounce: BallState, rubber: RubberType): OpponentPlan {
+  const spec = RUBBERS[rubber];
+  const incoming = spinType(ballAfterBounce);
+  const side = Math.abs(ballAfterBounce.spin.y) > Math.hypot(ballAfterBounce.spin.x, ballAfterBounce.spin.z) * 0.8;
+  const push = rubber === "shortPips" && incoming === "BACKSPIN" && !side;
+  const stroke = push ? "Schupf" : rubber === "shortPips" ? "weicher Konter / Block" : spec.stroke;
+  const contacts: { ball: BallState; steps: number }[] = [{ ball: cloneBall(ballAfterBounce), steps: 0 }];
+  const flight = cloneBall(ballAfterBounce);
+  for (let i = 1; i <= 180; i++) {
+    if (stepBall(flight, OPP_DT)) break;
+    if (i % 12 === 0 && flight.pos.y > TABLE.height + 0.07 && flight.pos.z < -0.06) contacts.push({ ball: cloneBall(flight), steps: i });
+  }
+  // Prefer a readable preparation interval, but retain immediate contact for edge cases.
+  contacts.sort((a, b) => Math.abs(a.steps * OPP_DT - 0.3) - Math.abs(b.steps * OPP_DT - 0.3));
+  let best: OpponentPlan | undefined;
+  let bestScore = Infinity;
+  for (const contact of contacts) {
+    for (let open = push ? 25 : spec.open[0]; open <= spec.open[1]; open += 10) {
+      const o = THREE.MathUtils.degToRad(open);
+      const normal = new THREE.Vector3(0, Math.sin(o), Math.cos(o));
+      for (let speed = spec.speed[0]; speed <= spec.speed[1] + 0.01; speed += spec.speed[2]) {
+        const dir = THREE.MathUtils.degToRad(push ? -15 : spec.typ.dir);
+        const vel = new THREE.Vector3(0, Math.sin(dir), Math.cos(dir)).multiplyScalar(speed);
+        const out = cloneBall(contact.ball);
+        if (!hitWithRubber(out, normal, vel, rubber)) continue;
+        for (let time = spec.flightTime[0]; time <= spec.flightTime[1] + 0.01; time += 0.15) {
+          const aimed = aim(out.pos, out.spin, time);
+          const error = aimed.distanceTo(out.vel);
+          const score = error * 0.3 + aimed.length() + Math.abs(speed - spec.typ.speed) * 0.2 + Math.abs(contact.steps * OPP_DT - 0.3) * 20;
+          if (score >= bestScore || !playable(out.pos, aimed, out.spin)) continue;
           bestScore = score;
-          best = { steps, point: contact.pos.clone(), normal: n.clone(), vel: v.clone(), rubber };
+          best = { steps: contact.steps, point: contact.ball.pos.clone(), normal, vel, rubber, stroke,
+            outgoingVel: aimed, outgoingSpin: out.spin.clone(), assisted: error > 0.25 };
         }
       }
     }
+    if (best && bestScore < 1) break;
   }
-  return best;
+  if (best) return best;
+  // A very short/edge bounce still receives a high, slow teaching lob. No rally is dropped.
+  const point = ballAfterBounce.pos.clone();
+  const spin = ballAfterBounce.spin.clone().multiplyScalar(spec.spinKeep);
+  const normal = new THREE.Vector3(0, 0.65, 0.76).normalize();
+  const outPoint = point.clone().addScaledVector(normal, BALL_RADIUS * 1.2);
+  let outgoingVel = aim(outPoint, spin, 1.2);
+  for (let time = 1.2; time <= 2; time += 0.15) {
+    outgoingVel = aim(outPoint, spin, time);
+    if (playable(outPoint, outgoingVel, spin)) break;
+  }
+  return { steps: 0, point, normal, vel: new THREE.Vector3(0, 0.2, 0.3), rubber, stroke,
+    outgoingVel, outgoingSpin: spin, assisted: true };
+}
+
+export function applyOpponentPlan(ball: BallState, plan: OpponentPlan) {
+  ball.pos.copy(plan.point).addScaledVector(plan.normal, BALL_RADIUS * 1.2);
+  ball.vel.copy(plan.outgoingVel);
+  ball.spin.copy(plan.outgoingSpin);
+  ball.nearBounceDamping = plan.rubber === "anti" ? { speed: 0.4, spin: 0.03, friction: 0.002 }
+    : plan.rubber === "shortPips" ? { speed: 0.7, spin: 1, friction: 0.18 }
+    : plan.rubber === "longPips" ? { speed: 0.75, spin: 1, friction: 0.18 } : undefined;
 }

@@ -1,5 +1,11 @@
 # Aufgaben
 
+- [x] Fenster links neben die Platte verschieben, freie Sicht sichern.
+- [x] Jeden gültigen Gegner-Aufsprung zurückspielen, immer in die Vorhand und mit höherem Bogen.
+- [x] Spin-/Tempoübertragung prüfen; belag- und schnittabhängige langsamere Lehrbälle (explizite Lernhilfe).
+- [x] Durchgehende Gegnerbewegung mit sichtbarem Arm/Handgelenk.
+- [x] Testanzeige Ballgeschwindigkeit und Physik-/Vorschauprüfung (16 Rückspiel-Fälle, 20 passive Energieprüfungen).
+
 - [x] Schwung realistischer übertragen (Zeitlupen-Verstärkung ≤1,3×, max. 6 m/s).
 - [x] Linkes Menü: Unterschnitt / Oberschnitt / Seitschnitt, passende Texte und Idealschlag.
 - [x] Nächster Ball nur auf Knopfdruck.
