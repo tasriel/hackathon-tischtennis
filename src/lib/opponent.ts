@@ -119,7 +119,7 @@ export function applyOpponentPlan(ball: BallState, plan: OpponentPlan) {
   ball.pos.copy(plan.point).addScaledVector(plan.normal, BALL_RADIUS * 1.2);
   ball.vel.copy(plan.outgoingVel);
   ball.spin.copy(plan.outgoingSpin);
-  ball.nearBounceDamping = plan.rubber === "anti" ? { speed: 0.15, spin: 0.03, friction: 0.002 }
+  ball.nearBounceDamping = plan.rubber === "anti" ? { speed: 0.4, spin: 0.03, friction: 0.002 }
     : plan.rubber === "shortPips" ? { speed: 0.7, spin: 1, friction: 0.18 }
     : plan.rubber === "longPips" ? { speed: 0.75, spin: 1, friction: 0.18 } : undefined;
 }
