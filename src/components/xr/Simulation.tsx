@@ -183,6 +183,8 @@ export function Simulation() {
     sh.ideal = defaultIdeal(kind);
     sh.label = `Schlag ${i + 1}/${settings.returns + 1}`;
     sh.heading = heading;
+    sh.strokeLabel = undefined;
+    sh.tip = undefined;
     snap.current = sh;
     recording.current = sh;
   };
@@ -367,6 +369,7 @@ export function Simulation() {
       _prevPos.copy(ball.pos);
       const ev = stepBall(ball, PHYS_DT);
       if (!s.hit) {
+        if (ev === "table-near") s.bouncedNear = true;
         const a = steps / Math.max(planned, 1);
         stepR.pos.lerpVectors(_lastRacket, racket.pos, a);
         stepR.normal.lerpVectors(_lastNormal, racket.normal, a).normalize();
