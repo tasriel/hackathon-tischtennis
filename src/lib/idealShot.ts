@@ -11,6 +11,20 @@ export type IdealShot = {
   found: boolean;
 };
 
+export type IdealMovement = {
+  open: [number, number, number];
+  speed: [number, number, number];
+  dir: [number, number, number];
+  fallback: Pick<IdealShot, "openDeg" | "speed" | "dirDeg">;
+};
+
+export const SHORT_PIPS_BACKSPIN_IDEAL: IdealMovement = {
+  open: [15, 55, 5],
+  speed: [0.6, 3.2, 0.4],
+  dir: [-40, 0, 5],
+  fallback: { openDeg: 32, speed: 1.8, dirDeg: -20 },
+};
+
 /** Standard-Schupf, solange noch nichts berechnet wurde. */
 export const DEFAULT_IDEAL: IdealShot = { openDeg: 45, speed: 1.8, dirDeg: -5, wrist: 3, found: false };
 
@@ -29,8 +43,10 @@ export function findIdealShot(
   velIn: THREE.Vector3,
   spinIn: THREE.Vector3,
   serve: ServeType = "backspin",
+  movement?: IdealMovement,
 ): IdealShot {
   const spec = STROKES[serve];
+  const search = movement ?? spec;
   const racket: RacketState = {
     pos: point.clone(),
     normal: new THREE.Vector3(),
@@ -40,15 +56,15 @@ export function findIdealShot(
     timeScale: 1,
   };
   const b: BallState = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), spin: new THREE.Vector3() };
-  let best = defaultIdeal(serve);
+  let best = movement ? { ...movement.fallback, wrist: 3, found: false } : defaultIdeal(serve);
   let bestScore = -Infinity;
   const dt = 1 / 240;
 
-  for (let open = spec.open[0]; open <= spec.open[1]; open += spec.open[2]) {
+  for (let open = search.open[0]; open <= search.open[1]; open += search.open[2]) {
     const o = THREE.MathUtils.degToRad(open);
     racket.normal.set(0, Math.sin(o), -Math.cos(o));
-    for (let speed = spec.speed[0]; speed <= spec.speed[1] + 0.01; speed += spec.speed[2]) {
-      for (let dir = spec.dir[0]; dir <= spec.dir[1]; dir += spec.dir[2]) {
+    for (let speed = search.speed[0]; speed <= search.speed[1] + 0.01; speed += search.speed[2]) {
+      for (let dir = search.dir[0]; dir <= search.dir[1]; dir += search.dir[2]) {
         const d = THREE.MathUtils.degToRad(dir);
         racket.vel.set(0, Math.sin(d), -Math.cos(d)).multiplyScalar(speed);
         b.pos.copy(point).addScaledVector(velIn, -dt * 3);

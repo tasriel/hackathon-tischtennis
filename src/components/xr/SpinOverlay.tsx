@@ -53,6 +53,9 @@ export type ContactSnapshot = {
   label: string;
   /** Überschrift der Live-Ansicht */
   heading: string;
+  /** Optionale, belagspezifische Schlagbezeichnung und Korrektur. */
+  strokeLabel?: string;
+  tip?: string;
 };
 
 export function makeSnapshot(): ContactSnapshot {
@@ -189,6 +192,7 @@ const idealDir = (dirDeg: number, out: THREE.Vector3) => {
 
 /** Kurze, konkrete Korrekturen aus der Abweichung zum Ideal. */
 function advice(s: ContactSnapshot): string[] {
+  if (s.tip) return [s.tip];
   const i = s.ideal;
   const parts: string[] = [];
   const dOpen = i.openDeg - s.openDeg;
@@ -448,9 +452,9 @@ export function SpinOverlay({
       ];
       if (replay) rows.push({ k: "Spin", du: SP[outSpin] ?? "–", ideal: SP[spec.wantSpin]!, c: outSpin === spec.wantSpin ? OK : FAR });
       const vd = replay ? verdict(rows.map((r) => r.c)) : { text: "", color: OK };
-      const [tip1, tip2] = replay ? twoLines(advice(s)) : twoLines([spec.tip], 34);
+      const [tip1, tip2] = replay ? twoLines(advice(s)) : twoLines([s.tip ?? spec.tip], 34);
       const next: Texts = {
-        title: replay ? (paused ? `${s.label} · Balltreffpunkt` : `Replay ${s.label}: ${spec.stroke}`) : s.heading || `${spec.serveLabel} → ${spec.stroke}`,
+        title: replay ? (paused ? `${s.label} · Balltreffpunkt` : `Replay ${s.label}: ${s.strokeLabel ?? spec.stroke}`) : s.heading || `${spec.serveLabel} → ${s.strokeLabel ?? spec.stroke}`,
         state: replay
           ? `${paused ? "Treffpunkt hält 1 s" : "Schleife bis zum nächsten Ball"}${settings.reviewCount > 1 ? " · ◀ ▶ wechseln" : ""}`
           : `Live · ${s.label}`,

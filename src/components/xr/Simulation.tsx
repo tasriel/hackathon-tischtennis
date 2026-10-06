@@ -3,7 +3,7 @@ import { useXR, useXRInputSourceState } from "@react-three/xr";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { ARM_REACH, CONTACT_Z, RUBBERS, TABLE, type ServeType } from "@/lib/constants";
-import { applyOpponentHit, planOpponent, type OpponentPlan } from "@/lib/opponent";
+import { applyOpponentHit, planOpponentFromFlight, type OpponentPlan } from "@/lib/opponent";
 import {
   collideRacket,
   makeBall,
@@ -16,7 +16,7 @@ import {
 } from "@/lib/physics";
 import { timeScaleFor } from "@/lib/timescale";
 import { predictReturn } from "@/lib/trajectory";
-import { defaultIdeal, findIdealShot } from "@/lib/idealShot";
+import { defaultIdeal, findIdealShot, SHORT_PIPS_BACKSPIN_IDEAL } from "@/lib/idealShot";
 import { setSetting, settings } from "@/lib/settings";
 import { STROKES } from "@/lib/strokes";
 import { Menus } from "./LeftMenu";
@@ -112,6 +112,10 @@ export function Simulation() {
     oppClock: 0,
     /** bisherige Rückschläge des Gegners in diesem Ballwechsel */
     returns: 0,
+    /** Der ankommende Ball ist auf der Spielerseite genau einmal aufgesprungen. */
+    bouncedNear: false,
+    /** Aufsprünge auf der Gegnerseite seit dem Spielerkontakt. */
+    opponentBounces: 0,
   });
 
   const ballGroup = useRef<THREE.Group>(null);
@@ -169,6 +173,8 @@ export function Simulation() {
     s.plan = null;
     s.oppClock = 0;
     s.returns = 0;
+    s.bouncedNear = false;
+    s.opponentBounces = 0;
   };
 
   const prepareShot = (i: number, kind: ServeType, heading: string) => {
@@ -180,6 +186,8 @@ export function Simulation() {
     sh.ideal = defaultIdeal(kind);
     sh.label = `Schlag ${i + 1}/${settings.returns + 1}`;
     sh.heading = heading;
+    delete sh.strokeLabel;
+    delete sh.tip;
     snap.current = sh;
     recording.current = sh;
   };
@@ -195,6 +203,8 @@ export function Simulation() {
     s.phase = "p2";
     s.returns++;
     s.hit = false;
+    s.bouncedNear = false;
+    s.opponentBounces = 0;
     s.flashTarget = "none";
     s.metrics = null;
     const side = Math.abs(ball.spin.y) > Math.hypot(ball.spin.x, ball.spin.z) * 0.8;
@@ -203,6 +213,11 @@ export function Simulation() {
     const kind: ServeType = side ? "sidespin" : st === "BACKSPIN" ? "backspin" : "topspin";
     const rb = RUBBERS[plan.rubber];
     prepareShot(s.returns, kind, `Gegner ${rb.label} → ${STROKES[kind].stroke}`);
+    const nextShot = shots[s.returns];
+    if (nextShot && plan.rubber === "shortPips" && kind === "backspin") {
+      nextShot.strokeLabel = "Schupf (frontal)";
+      nextShot.tip = "Frontaler treffen, steiler von oben nach unten schupfen.";
+    }
     setSetting("reviewCount", s.returns + 1);
     setSetting("reviewIndex", s.returns);
   };
@@ -345,7 +360,7 @@ export function Simulation() {
 
     // ---------- Simulation ----------
     const sinceHit = (performance.now() - s.hitAt) / 1000;
-    const scale = s.done && !s.hit ? 1 : timeScaleFor(ball.pos.z, s.hit, sinceHit);
+    const scale = s.done && !s.hit ? 1 : timeScaleFor(settings.slowMotion, s.bouncedNear, ball.vel.y, s.hit, sinceHit);
     s.scale = scale;
     racket.timeScale = scale;
     stepR.timeScale = scale;
@@ -358,6 +373,10 @@ export function Simulation() {
       _prevPos.copy(ball.pos);
       const ev = stepBall(ball, PHYS_DT);
       if (!s.hit) {
+        if (ev === "table-near") {
+          if (s.bouncedNear) finish("own");
+          else s.bouncedNear = true;
+        }
         const a = steps / Math.max(planned, 1);
         stepR.pos.lerpVectors(_lastRacket, racket.pos, a);
         stepR.normal.lerpVectors(_lastNormal, racket.normal, a).normalize();
@@ -404,13 +423,22 @@ export function Simulation() {
             const side = Math.abs(sb.y) > Math.hypot(sb.x, sb.z) * 0.8 && sb.length() > 5;
             sn.kind = side ? "sidespin" : top < -8 ? "backspin" : "topspin";
           }
-          sn.ideal = findIdealShot(lastContact.point, lastContact.velBefore, lastContact.spinBefore, sn.kind);
+          const shortPipsPush = sn.kind === "backspin" && s.returns > 0 && s.plan?.rubber === "shortPips";
+          sn.ideal = findIdealShot(lastContact.point, lastContact.velBefore, lastContact.spinBefore, sn.kind, shortPipsPush ? SHORT_PIPS_BACKSPIN_IDEAL : undefined);
           s0.clipPending = true;
           sn.explain = explainContact(s.metrics);
+          const nextPlan = s.returns < settings.returns ? planOpponentFromFlight(ball, settings.rubber) : null;
+          if (nextPlan) {
+            s.phase = "opp";
+            s.plan = nextPlan;
+            s.oppClock = 0;
+            s.opponentBounces = 0;
+          }
         } else if (!s.done && (ball.pos.z > CONTACT_Z + 0.6 || ev === "floor")) finish("miss");
       } else if (!s.done && s.phase === "opp") {
         s.oppClock += PHYS_DT;
-        if (s.plan && s.oppClock >= s.plan.steps * PHYS_DT - 1e-6) opponentHit();
+        if (ev === "table-far" && ++s.opponentBounces > 1) finish("success");
+        else if (s.plan && s.oppClock >= s.plan.steps * PHYS_DT - 1e-6) opponentHit();
         else if (ev && ev !== "table-far") finish("success");
       } else if (!s.done) {
         if (ev === "net") finish("net");
@@ -418,13 +446,8 @@ export function Simulation() {
           targetImpact.current.x = ball.pos.x;
           targetImpact.current.z = ball.pos.z;
           targetImpact.current.sequence++;
-          const plan = s.returns < settings.returns ? planOpponent(ball, settings.rubber) : null;
-          if (plan) {
-            s.phase = "opp";
-            s.plan = plan;
-            s.oppClock = 0;
-            s.flashTarget = "success";
-          } else finish("success");
+          if (s.phase === "opp" && s.plan) s.flashTarget = "success";
+          else finish("success");
         }
         else if (ev === "table-near") finish("own");
         else if (ev === "floor" || ball.pos.z < -TABLE.length / 2 - 0.3 || ball.pos.z > 3) finish("out");
@@ -476,7 +499,6 @@ export function Simulation() {
     const og = oppGroup.current;
     if (og) {
       const plan = s.plan;
-      if (plan && s.phase === "p2") s.oppClock += dt * scale;
       const tc = plan ? s.oppClock - plan.steps * PHYS_DT : -10;
       _oppN.copy(oppRest.normal);
       _oppP.copy(oppRest.pos);
@@ -485,12 +507,15 @@ export function Simulation() {
         // Handgelenk: Blatt dreht sich um die Querachse mit (Ausholen +, Ausschwung −).
         const sp = plan.vel.length();
         _tmp.copy(plan.vel).normalize();
-        const back = Math.min(0.32, 0.12 + sp * 0.05);
-        const follow = Math.min(0.3, 0.1 + sp * 0.06);
+        const isTopspin = plan.stroke.includes("Topspin");
+        const isPush = plan.stroke.includes("Schupf");
+        const passive = plan.rubber === "longPips" || plan.rubber === "anti";
+        const back = passive ? 0.11 : Math.min(0.32, 0.12 + sp * 0.05);
+        const follow = passive ? 0.1 : Math.min(0.3, 0.1 + sp * 0.06);
         const axis = _oppA.crossVectors(_tmp, _Yup).normalize();
         // Zeit bis zum Treffer ab Aufsprung: erst Anfahrt + Blatt eindrehen, dann gerader Schwung
-        const T = Math.max(0.15, plan.steps * PHYS_DT);
-        const swing = Math.min(0.22, T * 0.45);
+        const T = Math.max(0.32, plan.steps * PHYS_DT);
+        const swing = Math.min(0.3, T * 0.4);
         let off: number, wrist: number, w: number;
         if (tc < -swing) {
           // Anfahrt zur Ausholposition, Blattwinkel dreht dabei schon ein
@@ -514,6 +539,8 @@ export function Simulation() {
           wrist = -0.3;
         }
         const at = _c2.copy(plan.point).addScaledVector(_tmp, off);
+        if (isTopspin) at.y += off < 0 ? -0.1 * Math.abs(off) / Math.max(back, 0.01) : 0.14 * off / Math.max(follow, 0.01);
+        else if (isPush) at.y += off < 0 ? 0.08 * Math.abs(off) / Math.max(back, 0.01) : -0.08 * off / Math.max(follow, 0.01);
         _oppP.lerp(at, w);
         _wristN.copy(plan.normal).applyAxisAngle(axis, wrist);
         _oppN.lerp(_wristN, w).normalize();
