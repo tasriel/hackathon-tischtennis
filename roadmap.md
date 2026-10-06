@@ -22,4 +22,5 @@
 - [x] Review-Fenster und Rahmen vor transparentem Netz und übriger Halle zeichnen, ohne das Netz in der Replay-Aufnahme zu entfernen.
 - [ ] Test auf der Quest 3 (braucht das Headset).
 - [x] Gegner mit vier Belägen (Glatt, lange Noppe, kurze Noppe, Anti), Fenster „Belag Gegner“, zwei Review-Aufnahmen mit Pfeilen.
+- [x] Gegner-Anpassungen Runde 2: Review links neben der Platte, Rückschlag garantiert in die Vorhand, Schlagtechnik je Belag, sichtbare Aushol-/Handgelenkbewegung, Tempo in km/h, kurze Noppe schwächt Spin je nach Eindringen ab.
 - [ ] Echte Belag-Texturen für den Gegnerschläger (folgen vom Team).

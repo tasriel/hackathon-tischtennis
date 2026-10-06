@@ -12,8 +12,10 @@ export type OpponentPlan = {
   vel: THREE.Vector3; // Schlägergeschwindigkeit (Simulationszeit)
   rubber: RubberType;
   stroke: string;
-  /** Notlösung, falls keine Belag-Bewegung sicher landet: Ballzustand direkt nach dem Treffer */
-  override?: { vel: THREE.Vector3; spin: THREE.Vector3 };
+  /** Notlösung aktiv (keine Belag-Bewegung landete sicher) */
+  override?: boolean;
+  /** Vorab berechneter Ballzustand direkt nach dem Treffer – garantiert den Rückschlag */
+  result: { pos: THREE.Vector3; vel: THREE.Vector3; spin: THREE.Vector3 };
 };
 
 const _prev = new THREE.Vector3();
@@ -40,13 +42,9 @@ export function hitWithRubber(b: BallState, normal: THREE.Vector3, vel: THREE.Ve
 
 /** Führt den geplanten Gegnerschlag am Ball aus (inkl. Notlösung). */
 export function applyOpponentHit(b: BallState, plan: OpponentPlan) {
-  if (plan.override) {
-    b.vel.copy(plan.override.vel);
-    b.spin.copy(plan.override.spin);
-    b.pos.z += 0.03;
-    return;
-  }
-  hitWithRubber(b, plan.normal, plan.vel, plan.rubber);
+  b.pos.copy(plan.result.pos);
+  b.vel.copy(plan.result.vel);
+  b.spin.copy(plan.result.spin);
 }
 
 /** Fliegt der Ball und landet auf der Spielerseite? Liefert Bewertung oder −Infinity. */
@@ -122,6 +120,7 @@ export function planOpponent(ballAfterBounce: BallState, rubber: RubberType): Op
           t.spin.copy(contact.spin);
           if (!hitWithRubber(t, n, v, rubber)) continue;
           const outSpin = spinType(t);
+          const res = { pos: t.pos.clone(), vel: t.vel.clone(), spin: t.spin.clone() };
           const r = rate(t, spec.targetZ);
           let score = r.score;
           if (r.ok) {
@@ -130,7 +129,7 @@ export function planOpponent(ballAfterBounce: BallState, rubber: RubberType): Op
           }
           if (score > bestScore) {
             bestScore = score;
-            best = { steps, point: contact.pos.clone(), normal: n.clone(), vel: v.clone(), rubber, stroke: st.stroke };
+            best = { steps, point: contact.pos.clone(), normal: n.clone(), vel: v.clone(), rubber, stroke: st.stroke, result: res };
           }
         }
       }
@@ -143,11 +142,13 @@ export function planOpponent(ballAfterBounce: BallState, rubber: RubberType): Op
 /** Notfall: Ballflug direkt so wählen, dass er sicher in der Vorhand landet (Spin nach Belag). */
 function fallbackPlan(contact: BallState, steps: number, rubber: RubberType, stroke: string, yaw: number): OpponentPlan {
   const spec = RUBBERS[rubber];
+  // lange Noppe behält den Weltspin (Umkehr), alle anderen Beläge drehen nicht um
   const spin = contact.spin.clone().multiplyScalar(spec.spinKeep * 0.5);
+  if (rubber !== "longPips") { spin.x = -spin.x; spin.z = -spin.z; }
   const t = cloneBall(contact);
   let best = { vel: new THREE.Vector3(0, 2, 4), score: -Infinity };
   const v = new THREE.Vector3();
-  for (let vz = 2; vz <= 7; vz += 0.25) {
+  for (let vz = 1.5; vz <= 7; vz += 0.25) {
     for (let vy = -0.5; vy <= 3.5; vy += 0.25) {
       v.set(0, vy, vz).applyAxisAngle(_Y, yaw);
       t.pos.copy(contact.pos);
@@ -159,5 +160,7 @@ function fallbackPlan(contact: BallState, steps: number, rubber: RubberType, str
     }
   }
   const n = best.vel.clone().normalize();
-  return { steps, point: contact.pos.clone(), normal: n, vel: best.vel.clone().multiplyScalar(0.3), rubber, stroke, override: { vel: best.vel, spin } };
+  const pos = contact.pos.clone();
+  pos.z += 0.03;
+  return { steps, point: contact.pos.clone(), normal: n, vel: best.vel.clone().multiplyScalar(0.3), rubber, stroke, override: true, result: { pos, vel: best.vel, spin } };
 }

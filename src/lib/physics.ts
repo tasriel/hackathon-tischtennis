@@ -177,7 +177,7 @@ export function collideRacket(
   prevPos: THREE.Vector3,
   r: RacketState,
   rPrev?: { pos: THREE.Vector3; normal: THREE.Vector3 },
-  rubber?: { grip: number; restitution: number; spinKeep: number },
+  rubber?: { grip: number; restitution: number; spinKeep: number; spinDamp?: number },
 ): boolean {
   _n.copy(r.normal).normalize();
   _np.copy(rPrev ? rPrev.normal : r.normal).normalize();
@@ -202,7 +202,12 @@ export function collideRacket(
   lastContact.velBefore.copy(b.vel);
   const relT = _vt.copy(_rel).addScaledVector(_n, -vn);
   // Kontaktpunktgeschwindigkeit inkl. Spin
-  if (rubber && rubber.spinKeep < 1) b.spin.multiplyScalar(rubber.spinKeep);
+  if (rubber) {
+    // Eindringen in den Belag: je härter der Aufprall, desto mehr Spin wird geschluckt (nie umgekehrt)
+    const pen = rubber.spinDamp ? Math.max(0, 1 - -vn / rubber.spinDamp) : 1;
+    const keep = rubber.spinKeep * pen;
+    if (keep < 1) b.spin.multiplyScalar(keep);
+  }
   _r.copy(_n).multiplyScalar(-BALL_RADIUS);
   _vc.crossVectors(b.spin, _r).add(relT);
   _dv.copy(_vc).multiplyScalar(-(rubber?.grip ?? RACKET_GRIP));
