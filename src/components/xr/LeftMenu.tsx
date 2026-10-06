@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import * as THREE from "three";
-import type { ServeType } from "@/lib/constants";
+import { RUBBERS, type RubberType, type ServeType } from "@/lib/constants";
 import { setSetting, useSettings, type TargetSpot } from "@/lib/settings";
 import { STROKES } from "@/lib/strokes";
 import { Label } from "./Label";
@@ -76,6 +76,7 @@ function Panel({ title, subtitle, position, size, children }: { title: string; s
 }
 
 const SERVES: ServeType[] = ["backspin", "topspin", "sidespin"];
+const RUBBER_KEYS: RubberType[] = ["smooth", "longPips", "shortPips", "anti"];
 const SPOTS: { key: TargetSpot; label: string }[] = [
   { key: "left", label: "Links" },
   { key: "center", label: "Mitte" },
@@ -91,6 +92,8 @@ export function Menus() {
       if (serve) setSetting("serve", serve);
       const spot = { KeyJ: "left", KeyK: "center", KeyL: "right" }[e.code] as TargetSpot | undefined;
       if (spot) setSetting("target", spot);
+      const rubber = { Digit5: "smooth", Digit6: "longPips", Digit7: "shortPips", Digit8: "anti" }[e.code] as RubberType | undefined;
+      if (rubber) setSetting("rubber", rubber);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -98,6 +101,20 @@ export function Menus() {
 
   return (
     <>
+      <Panel title="Belag Gegner" subtitle="5 / 6 / 7 / 8" position={[-1.15, 1.2, 2.95]} size={[0.54, 0.53]}>
+        {RUBBER_KEYS.map((k, i) => (
+          <MenuButton
+            key={k}
+            label={RUBBERS[k].label}
+            active={s.rubber === k}
+            position={[0, 0.07 - i * 0.092, 0]}
+            width={0.44}
+            height={0.078}
+            onSelect={() => setSetting("rubber", k)}
+          />
+        ))}
+      </Panel>
+
       <Panel title="Schnitt-Variante" subtitle="1 / 2 / 3" position={[-1.15, 1.2, 2.3]} size={[0.54, 0.43]}>
         {SERVES.map((k, i) => (
           <MenuButton
