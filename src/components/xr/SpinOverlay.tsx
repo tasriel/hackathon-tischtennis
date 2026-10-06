@@ -587,7 +587,7 @@ export function SpinOverlay({
             stepReview(side);
           }}
         >
-          <circleGeometry args={[1, 3, side < 0 ? 0 : Math.PI]} />
+          <circleGeometry args={[1, 3, side < 0 ? Math.PI : 0]} />
           <meshBasicMaterial color={VIOLET_SOFT} transparent opacity={1} depthTest={false} depthWrite={false} />
         </mesh>
       ))}

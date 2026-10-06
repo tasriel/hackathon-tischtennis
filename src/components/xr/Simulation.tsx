@@ -2,7 +2,8 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useXR, useXRInputSourceState } from "@react-three/xr";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import { ARM_REACH, CONTACT_Z, TABLE } from "@/lib/constants";
+import { ARM_REACH, CONTACT_Z, RUBBERS, TABLE, type ServeType } from "@/lib/constants";
+import { hitWithRubber, planOpponent, type OpponentPlan } from "@/lib/opponent";
 import {
   collideRacket,
   makeBall,
@@ -16,7 +17,8 @@ import {
 import { timeScaleFor } from "@/lib/timescale";
 import { predictReturn } from "@/lib/trajectory";
 import { defaultIdeal, findIdealShot } from "@/lib/idealShot";
-import { settings } from "@/lib/settings";
+import { setSetting, settings } from "@/lib/settings";
+import { STROKES } from "@/lib/strokes";
 import { Menus } from "./LeftMenu";
 import { type ShotMetrics, type ShotResult } from "@/lib/coaching";
 import { BallModel } from "./BallModel";
@@ -88,11 +90,18 @@ export function Simulation() {
     flashTarget: "none" as "none" | "success" | "fail",
     desktopTilt: 0.35,
     mouse: new THREE.Vector2(0, 0),
+    phase: "p1" as "p1" | "opp" | "p2",
+    plan: null as OpponentPlan | null,
+    oppClock: 0,
   });
 
   const ballGroup = useRef<THREE.Group>(null);
   const racketGroup = useRef<THREE.Group>(null);
-  const snap = useRef<ContactSnapshot>(makeSnapshot());
+  const shots = useMemo(() => [makeSnapshot(), makeSnapshot()], []);
+  const snap = useRef<ContactSnapshot>(shots[0]!);
+  const recording = useRef<ContactSnapshot>(shots[0]!);
+  const oppGroup = useRef<THREE.Group>(null);
+  const oppRest = useMemo(() => ({ pos: new THREE.Vector3(-0.15, 1.0, -1.75), normal: new THREE.Vector3(0, 0, 1) }), []);
   const targetImpact = useRef<TargetImpact>({ x: 0, z: 0, sequence: 0 });
   // Für die Vorschau: stärker geglättete Schlägerbewegung, damit die Kurve nicht zappelt
   const previewRacket = useMemo<RacketState>(
@@ -121,9 +130,14 @@ export function Simulation() {
   const restart = () => {
     resetServe(ball, settings.serve);
     s0.clipPending = false;
-    snap.current.active = false;
-    snap.current.ready = false;
-    snap.current.ideal = defaultIdeal(settings.serve);
+    for (const sh of shots) {
+      sh.active = false;
+      sh.ready = false;
+      sh.clip = [];
+    }
+    prepareShot(0, settings.serve, "");
+    setSetting("reviewCount", 1);
+    setSetting("reviewIndex", 0);
     _prevPos.copy(ball.pos);
     const s = sim.current;
     s.hit = false;
@@ -132,6 +146,44 @@ export function Simulation() {
     s.metrics = null;
     s.flashTarget = "none";
     s.lastSpin = "";
+    s.phase = "p1";
+    s.plan = null;
+    s.oppClock = 0;
+  };
+
+  const prepareShot = (i: number, kind: ServeType, heading: string) => {
+    const sh = shots[i]!;
+    sh.active = false;
+    sh.ready = false;
+    sh.clip = [];
+    sh.kind = kind;
+    sh.ideal = defaultIdeal(kind);
+    sh.label = `Schlag ${i + 1}/2`;
+    sh.heading = heading;
+    snap.current = sh;
+    recording.current = sh;
+  };
+
+  /** Gegner hat getroffen → Ball fliegt zum Spieler, zweiter Spielerschlag wird erwartet. */
+  const opponentHit = () => {
+    const s = sim.current;
+    const plan = s.plan!;
+    hitWithRubber(ball, plan.normal, plan.vel, plan.rubber);
+    _prevPos.copy(ball.pos);
+    lastTest.pos.copy(racket.pos);
+    lastTest.normal.copy(racket.normal);
+    s.phase = "p2";
+    s.hit = false;
+    s.flashTarget = "none";
+    s.metrics = null;
+    const side = Math.abs(ball.spin.y) > Math.hypot(ball.spin.x, ball.spin.z) * 0.8;
+    const st = spinType(ball);
+    s.incoming = st;
+    const kind: ServeType = side ? "sidespin" : st === "BACKSPIN" ? "backspin" : "topspin";
+    const rb = RUBBERS[plan.rubber];
+    prepareShot(1, kind, `Gegner ${rb.label} → ${STROKES[kind].stroke}`);
+    setSetting("reviewCount", 2);
+    setSetting("reviewIndex", 1);
   };
 
   useEffect(() => {
@@ -188,6 +240,10 @@ export function Simulation() {
   const _ray = useMemo(() => new THREE.Raycaster(), []);
   const _plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 0, 1), -CONTACT_Z), []);
   const trigWasPressed = useRef(false);
+  const oppFace = useRef<THREE.MeshStandardMaterial>(null);
+  const _oppN = useMemo(() => new THREE.Vector3(), []);
+  const _oppP = useMemo(() => new THREE.Vector3(), []);
+  const _oppA = useMemo(() => new THREE.Vector3(), []);
   const s0 = useMemo(() => ({ clipPending: false }), []);
   const ring = useMemo<ClipFrame[]>(
     () => Array.from({ length: RING }, () => ({ t: 0, pos: new THREE.Vector3(), quat: new THREE.Quaternion(), ball: new THREE.Vector3(), spin: new THREE.Vector3() })),
@@ -301,7 +357,9 @@ export function Simulation() {
             forwardSpeed: -rv.z,
             result: "miss",
           };
-          const sn = snap.current;
+          const sn = recording.current;
+          snap.current = sn;
+          setSetting("reviewIndex", s.phase === "p2" ? 1 : 0);
           sn.active = true;
           sn.t0 = performance.now();
           sn.point.copy(lastContact.point);
@@ -316,17 +374,27 @@ export function Simulation() {
           sn.dirDeg = THREE.MathUtils.radToDeg(Math.atan2(rv.y, Math.max(-rv.z, 1e-3)));
           sn.wrist = racket.angVel.length();
           sn.scale = scale;
-          sn.ideal = findIdealShot(lastContact.point, lastContact.velBefore, lastContact.spinBefore, settings.serve);
+          sn.ideal = findIdealShot(lastContact.point, lastContact.velBefore, lastContact.spinBefore, sn.kind);
           s0.clipPending = true;
           sn.explain = explainContact(s.metrics);
         } else if (!s.done && (ball.pos.z > CONTACT_Z + 0.6 || ev === "floor")) finish("miss");
+      } else if (!s.done && s.phase === "opp") {
+        s.oppClock += PHYS_DT;
+        if (s.plan && s.oppClock >= s.plan.steps * PHYS_DT - 1e-6) opponentHit();
+        else if (ev && ev !== "table-far") finish("success");
       } else if (!s.done) {
         if (ev === "net") finish("net");
         else if (ev === "table-far") {
           targetImpact.current.x = ball.pos.x;
           targetImpact.current.z = ball.pos.z;
           targetImpact.current.sequence++;
-          finish("success");
+          const plan = s.phase === "p1" ? planOpponent(ball, settings.rubber) : null;
+          if (plan) {
+            s.phase = "opp";
+            s.plan = plan;
+            s.oppClock = 0;
+            s.flashTarget = "success";
+          } else finish("success");
         }
         else if (ev === "table-near") finish("own");
         else if (ev === "floor" || ball.pos.z < -TABLE.length / 2 - 0.3 || ball.pos.z > 3) finish("out");
@@ -370,6 +438,33 @@ export function Simulation() {
       tableMats.current.far.emissive.set(target === "success" ? col : "#000000").multiplyScalar(s.flash * 0.4);
     }
 
+    // ---------- Review-Auswahl ----------
+    const pick = shots[Math.min(settings.reviewIndex, 1)]!;
+    if (settings.reviewCount > 1 && snap.current !== pick) snap.current = pick;
+
+    // ---------- Gegner-Schläger ----------
+    const og = oppGroup.current;
+    if (og) {
+      const plan = s.plan;
+      const tc = plan ? s.oppClock - plan.steps * PHYS_DT : -10;
+      _oppN.copy(oppRest.normal);
+      _oppP.copy(oppRest.pos);
+      if (plan && (s.phase === "opp" || tc < 1)) {
+        const sp = plan.vel.length();
+        _tmp.copy(plan.vel).normalize();
+        const back = Math.min(0.3, 0.12 + sp * 0.05);
+        const at = _oppA.copy(plan.point).addScaledVector(_tmp, THREE.MathUtils.clamp(tc * sp * 1.5, -back, 0.22));
+        // aus der Ruheposition einblenden bzw. danach zurückführen
+        const w = tc < 0 ? THREE.MathUtils.smoothstep(tc, -0.7, -0.35) : 1 - THREE.MathUtils.smoothstep(tc, 0.45, 1);
+        _oppP.lerp(at, w);
+        _oppN.lerp(plan.normal, w).normalize();
+      }
+      og.position.lerp(_oppP, 1 - Math.exp(-30 * dt));
+      _q.setFromUnitVectors(_X, _oppN);
+      og.quaternion.slerp(_q, 1 - Math.exp(-30 * dt));
+      oppFace.current?.color.set(RUBBERS[settings.rubber].color);
+    }
+
     // ---------- Aufzeichnung für die Overlay-Animation ----------
     const now = performance.now();
     const fr = ring[ringIdx.current % RING]!;
@@ -379,7 +474,7 @@ export function Simulation() {
     fr.quat.copy(racket.quat);
     if (ballGroup.current) fr.ball.copy(ballGroup.current.position);
     fr.spin.copy(ball.spin);
-    const sn = snap.current;
+    const sn = recording.current;
     if (s0.clipPending && now - sn.t0 > CLIP_AFTER * 1000) {
       s0.clipPending = false;
       const frames: ClipFrame[] = [];
@@ -410,6 +505,14 @@ export function Simulation() {
       </group>
       <primitive object={previewMesh} />
       <Target impact={targetImpact} />
+      <group ref={oppGroup} position={oppRest.pos}>
+        <RacketModel />
+        {/* Platzhalter-Belagfarbe bis zu den echten Texturen */}
+        <mesh position={[0.006, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+          <circleGeometry args={[0.078, 32]} />
+          <meshStandardMaterial ref={oppFace} color={RUBBERS.smooth.color} roughness={0.7} />
+        </mesh>
+      </group>
       <Menus />
       <SpinOverlay ball={ball} racket={racket} snap={snap} ballObj={ballGroup} racketObj={racketGroup} getScale={() => sim.current.scale} />
     </>
@@ -417,6 +520,7 @@ export function Simulation() {
 }
 
 const _c = new THREE.Color();
+const _X = new THREE.Vector3(1, 0, 0);
 
 /** Kurze Erklärung, warum der Ball so zurückkommt (Kontakt-Moment im Overlay). */
 function explainContact(m: ShotMetrics): string {
