@@ -1,7 +1,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
-import { RUBBERS, type RubberType } from "@/lib/constants";
+import { RUBBERS } from "@/lib/constants";
 import type { OpponentPlan } from "@/lib/opponent";
 import { RacketModel } from "./RacketModel";
 

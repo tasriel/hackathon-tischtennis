@@ -18,7 +18,7 @@ export type BallState = {
   pos: THREE.Vector3;
   vel: THREE.Vector3;
   spin: THREE.Vector3; // Winkelgeschwindigkeit rad/s
-  nearBounceDamping?: { speed: number; spin: number; friction: number };
+  nearBounceDamping?: { speed: number; spin: number; friction: number } | undefined;
 };
 
 export type RacketState = {

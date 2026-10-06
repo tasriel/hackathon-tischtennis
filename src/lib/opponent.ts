@@ -90,7 +90,7 @@ export function planOpponent(ballAfterBounce: BallState, rubber: RubberType): Op
         for (let time = spec.flightTime[0]; time <= spec.flightTime[1] + 0.01; time += 0.15) {
           const aimed = aim(out.pos, out.spin, time);
           const error = aimed.distanceTo(out.vel);
-          const score = error + Math.abs(speed - spec.typ.speed) * 0.2 + Math.abs(contact.steps * OPP_DT - 0.3) * 2;
+          const score = error + Math.abs(speed - spec.typ.speed) * 0.2 + Math.abs(contact.steps * OPP_DT - 0.3) * 20;
           if (score >= bestScore || !playable(out.pos, aimed, out.spin)) continue;
           bestScore = score;
           best = { steps: contact.steps, point: contact.ball.pos.clone(), normal, vel, rubber, stroke,
@@ -119,5 +119,5 @@ export function applyOpponentPlan(ball: BallState, plan: OpponentPlan) {
   ball.pos.copy(plan.point).addScaledVector(plan.normal, BALL_RADIUS * 1.2);
   ball.vel.copy(plan.outgoingVel);
   ball.spin.copy(plan.outgoingSpin);
-  ball.nearBounceDamping = plan.rubber === "anti" ? { speed: 0.65, spin: 0.03, friction: 0.002 } : undefined;
+  ball.nearBounceDamping = plan.rubber === "anti" ? { speed: 0.4, spin: 0.03, friction: 0.002 } : undefined;
 }
