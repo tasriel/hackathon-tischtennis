@@ -125,6 +125,7 @@ export function planOpponent(ballAfterBounce: BallState, rubber: RubberType): Op
           let score = r.score;
           if (r.ok) {
             if (st.wantSpin && outSpin === st.wantSpin) score += 3;
+            if (st.minSpin) score -= Math.max(0, st.minSpin - res.spin.length()) / 15;
             score -= Math.abs(open - st.typ.open) / 20 + Math.abs(speed - st.typ.speed) / 1.2 + Math.abs(dir - st.typ.dir) / 20;
           }
           if (score > bestScore) {
@@ -142,9 +143,10 @@ export function planOpponent(ballAfterBounce: BallState, rubber: RubberType): Op
 /** Notfall: Ballflug direkt so wählen, dass er sicher in der Vorhand landet (Spin nach Belag). */
 function fallbackPlan(contact: BallState, steps: number, rubber: RubberType, stroke: string, yaw: number): OpponentPlan {
   const spec = RUBBERS[rubber];
-  // lange Noppe behält den Weltspin (Umkehr), alle anderen Beläge drehen nicht um
-  const spin = contact.spin.clone().multiplyScalar(spec.spinKeep * 0.5);
-  if (rubber !== "longPips") { spin.x = -spin.x; spin.z = -spin.z; }
+  // lange Noppe und Anti behalten den Weltspin (Umkehr), die anderen Beläge drehen nicht um
+  const keepWorld = rubber === "longPips" || rubber === "anti";
+  const spin = contact.spin.clone().multiplyScalar(spec.spinKeep * (keepWorld ? 0.8 : 0.5));
+  if (!keepWorld) { spin.x = -spin.x; spin.z = -spin.z; }
   const t = cloneBall(contact);
   let best = { vel: new THREE.Vector3(0, 2, 4), score: -Infinity };
   const v = new THREE.Vector3();
