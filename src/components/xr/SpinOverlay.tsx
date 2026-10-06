@@ -6,10 +6,10 @@ import { Line2 } from "three/addons/lines/Line2.js";
 import { LineGeometry } from "three/addons/lines/LineGeometry.js";
 import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import { PointerCursorMaterial, PointerRayMaterial } from "@pmndrs/xr/internals";
-import { BALL_RADIUS, RACKET_RADIUS, TABLE } from "@/lib/constants";
+import { BALL_RADIUS, RACKET_RADIUS, TABLE, type ServeType } from "@/lib/constants";
 import { racketPointVel, slowmoBoost, spinType, type BallState, type RacketState } from "@/lib/physics";
 import { DEFAULT_IDEAL, type IdealShot } from "@/lib/idealShot";
-import { settings } from "@/lib/settings";
+import { setSetting, settings } from "@/lib/settings";
 import { STROKES } from "@/lib/strokes";
 import { FREEZE_SCALE } from "@/lib/timescale";
 import { BallModel } from "./BallModel";
@@ -47,6 +47,12 @@ export type ContactSnapshot = {
   scale: number;
   ideal: IdealShot;
   explain: string;
+  /** erwarteter Schlag (Variante des ankommenden Balls) */
+  kind: ServeType;
+  /** z.B. "Schlag 2/2" */
+  label: string;
+  /** Überschrift der Live-Ansicht */
+  heading: string;
 };
 
 export function makeSnapshot(): ContactSnapshot {
@@ -69,6 +75,9 @@ export function makeSnapshot(): ContactSnapshot {
     scale: 1,
     ideal: DEFAULT_IDEAL,
     explain: "",
+    kind: "backspin",
+    label: "Schlag 1",
+    heading: "",
   };
 }
 
@@ -298,6 +307,8 @@ export function SpinOverlay({
   });
 
   const panel = useRef<THREE.Mesh>(null);
+  const arrowL = useRef<THREE.Mesh>(null);
+  const arrowR = useRef<THREE.Mesh>(null);
   const frame = useRef<THREE.Mesh>(null);
   const [texts, setTexts] = useState<Texts>({ title: "", state: "", rows: [], verdict: "", verdictC: OK, tip1: "", tip2: "" });
   const tick = useRef(0);
@@ -422,7 +433,7 @@ export function SpinOverlay({
         open = THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(toFar.y, -1, 1)));
       }
       const dir = replay ? s.dirDeg : THREE.MathUtils.radToDeg(Math.atan2(vel.y, Math.max(-vel.z, 1e-3)));
-      const spec = STROKES[settings.serve];
+      const spec = STROKES[s.kind];
       const deg = (d: number) => `${Math.abs(Math.round(d))}° ${d >= 0 ? "offen" : "geschl."}`;
       const sg = (d: number) => `${d >= 0 ? "+" : ""}${Math.round(d)}°`;
       const angleC = grade(Math.abs(open - ideal.openDeg), 8, 18);
@@ -439,8 +450,10 @@ export function SpinOverlay({
       const vd = replay ? verdict(rows.map((r) => r.c)) : { text: "", color: OK };
       const [tip1, tip2] = replay ? twoLines(advice(s)) : twoLines([spec.tip], 34);
       const next: Texts = {
-        title: replay ? (paused ? "Balltreffpunkt" : `Replay: ${spec.stroke}`) : `${spec.serveLabel} → ${spec.stroke}`,
-        state: replay ? (paused ? "Treffpunkt hält 1 s" : "Schleife bis zum nächsten Ball") : "Live",
+        title: replay ? (paused ? `${s.label} · Balltreffpunkt` : `Replay ${s.label}: ${spec.stroke}`) : s.heading || `${spec.serveLabel} → ${spec.stroke}`,
+        state: replay
+          ? `${paused ? "Treffpunkt hält 1 s" : "Schleife bis zum nächsten Ball"}${settings.reviewCount > 1 ? " · ◀ ▶ wechseln" : ""}`
+          : `Live · ${s.label}`,
         rows,
         verdict: vd.text,
         verdictC: vd.color,
@@ -472,6 +485,8 @@ export function SpinOverlay({
     const liveBallWasVisible = bo?.visible;
     if (replay && bo) bo.visible = false;
     if (reviewBall.current) reviewBall.current.visible = replay;
+    if (arrowL.current) arrowL.current.visible = false;
+    if (arrowR.current) arrowR.current.visible = false;
     try {
       gl.render(scene, cam);
     } finally {
@@ -516,7 +531,28 @@ export function SpinOverlay({
       const fm = f.material as THREE.MeshBasicMaterial;
       fm.color.set(snap.current.ready ? VIOLET : "#111827");
     }
+    // Pfeile zum Wechseln zwischen den Schlagaufnahmen
+    const many = settings.reviewCount > 1;
+    [arrowL.current, arrowR.current].forEach((a, i) => {
+      if (!a) return;
+      const side = i === 0 ? -1 : 1;
+      const active = side < 0 ? settings.reviewIndex > 0 : settings.reviewIndex < settings.reviewCount - 1;
+      a.visible = many;
+      a.quaternion.copy(p.quaternion);
+      a.position.copy(_v.set(side * (p.scale.x / 2 + p.scale.y * 0.12), 0, 0.001).applyQuaternion(p.quaternion).add(p.position));
+      a.scale.setScalar(p.scale.y * 0.09);
+      (a.material as THREE.MeshBasicMaterial).color.set(active ? VIOLET_SOFT : "#475569");
+    });
   });
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === "Comma") stepReview(-1);
+      if (e.code === "Period") stepReview(1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   return (
     <>
@@ -540,6 +576,21 @@ export function SpinOverlay({
         <Label text={texts.tip1} anchor="left" position={[0, -0.15, -0.44]} height={0.028} color="#e6d36a" bg="rgba(0,0,0,0)" />
         <Label text={texts.tip2} anchor="left" position={[0, -0.188, -0.44]} height={0.028} color="#e6d36a" bg="rgba(0,0,0,0)" />
       </group>
+      {[-1, 1].map((side) => (
+        <mesh
+          key={side}
+          ref={side < 0 ? arrowL : arrowR}
+          renderOrder={1001}
+          visible={false}
+          onClick={(e) => {
+            e.stopPropagation();
+            stepReview(side);
+          }}
+        >
+          <circleGeometry args={[1, 3, side < 0 ? Math.PI : 0]} />
+          <meshBasicMaterial color={VIOLET_SOFT} transparent opacity={1} depthTest={false} depthWrite={false} />
+        </mesh>
+      ))}
       <mesh ref={frame} renderOrder={999} onUpdate={(m) => m.layers.set(PANEL_LAYER)}>
         <planeGeometry args={[1, 1]} />
         {/* Volle Deckkraft, aber in der transparenten Render-Gruppe nach dem Netz zeichnen. */}
@@ -557,4 +608,10 @@ export function SpinOverlay({
 function idealPos(contact: THREE.Vector3, dir: THREE.Vector3, speed: number, t: number, out: THREE.Vector3) {
   const tc = THREE.MathUtils.clamp(t, -0.3, 0.2);
   return out.copy(contact).addScaledVector(dir, speed * tc);
+}
+
+function stepReview(d: number) {
+  const n = settings.reviewCount;
+  if (n < 2) return;
+  setSetting("reviewIndex", THREE.MathUtils.clamp(settings.reviewIndex + d, 0, n - 1));
 }

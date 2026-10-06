@@ -14,3 +14,4 @@
 - Keep the court net as a single alpha-cutout texture plane using canonical net height, so the XR scene avoids a costly decorative net model without changing ball collisions.
 - Drive target celebrations from far-table impact events and keep floor markings hidden only during replay capture, so visual feedback is frame-rate-independent and the main hall retains its markings.
 - Draw the opaque review frame and image last in the transparent render queue without depth testing, so transparent nets and scene labels cannot cover the XR review panel.
+- Model opponent rubbers as physics constants (grip, restitution, spin retention) in constants.ts and keep the opponent racket a SceneModel visual, so rubber behaviour and textures stay independently swappable.
