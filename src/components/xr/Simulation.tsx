@@ -518,9 +518,10 @@ export function Simulation() {
         _wristN.copy(plan.normal).applyAxisAngle(axis, wrist);
         _oppN.lerp(_wristN, w).normalize();
       }
-      og.position.copy(_oppP);
+      // leichte Glättung nur gegen Sprünge beim Neustart, Bahn selbst ist stetig
+      og.position.lerp(_oppP, 1 - Math.exp(-25 * dt));
       _q.setFromUnitVectors(_X, _oppN);
-      og.quaternion.copy(_q);
+      og.quaternion.slerp(_q, 1 - Math.exp(-25 * dt));
       oppFace.current?.color.set(RUBBERS[settings.rubber].color);
     }
 
