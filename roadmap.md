@@ -24,5 +24,5 @@
 - [x] Gegner mit vier Belägen (Glatt, lange Noppe, kurze Noppe, Anti), Fenster „Belag Gegner“, zwei Review-Aufnahmen mit Pfeilen.
 - [x] Gegner-Anpassungen Runde 2: Review links neben der Platte, Rückschlag garantiert in die Vorhand, Schlagtechnik je Belag, sichtbare Aushol-/Handgelenkbewegung, Tempo in km/h, kurze Noppe schwächt Spin je nach Eindringen ab.
 - [x] Gegner Runde 3: mehr Unterschnitt beim Glatt-Schupf, fließende Gegnerbewegung, 1–3 Rückschläge, Fenster im Bogen, kurze Noppe baut Spin langsam ab, Anti mit Schnittumkehr.
-- [ ] Anpassungen #3: Live-Zeitlupe schaltbar und scheitelpunktgesteuert, Topspin-Tempo begrenzen, Gegner früh antizipieren lassen, kurze-Noppe-Schupf im Review.
+- [x] Anpassungen #3: Live-Zeitlupe schaltbar und scheitelpunktgesteuert, Topspin-Tempo begrenzen, Gegner früh antizipieren lassen, kurze-Noppe-Schupf im Review.
 - [ ] Echte Belag-Texturen für den Gegnerschläger (folgen vom Team).
