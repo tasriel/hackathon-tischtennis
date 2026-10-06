@@ -101,7 +101,7 @@ export function Menus() {
 
   return (
     <>
-      <Panel title="Belag Gegner" subtitle="5 / 6 / 7 / 8" position={[-1.65, 1.2, 3.15]} size={[0.54, 0.53]}>
+      <Panel title="Belag Gegner" subtitle="5 / 6 / 7 / 8" position={[-1.15, 1.2, 2.95]} size={[0.54, 0.53]}>
         {RUBBER_KEYS.map((k, i) => (
           <MenuButton
             key={k}
@@ -115,7 +115,7 @@ export function Menus() {
         ))}
       </Panel>
 
-      <Panel title="Schnitt-Variante" subtitle="1 / 2 / 3" position={[-1.65, 1.2, 2.5]} size={[0.54, 0.43]}>
+      <Panel title="Schnitt-Variante" subtitle="1 / 2 / 3" position={[-1.15, 1.2, 2.3]} size={[0.54, 0.43]}>
         {SERVES.map((k, i) => (
           <MenuButton
             key={k}
@@ -129,7 +129,7 @@ export function Menus() {
         ))}
       </Panel>
 
-      <Panel title="Target" subtitle="J / K / L" position={[-1.65, 1.2, 1.7]} size={[0.74, 0.3]}>
+      <Panel title="Target" subtitle="J / K / L" position={[-1.15, 1.2, 1.55]} size={[0.74, 0.3]}>
         {SPOTS.map((sp, i) => (
           <MenuButton
             key={sp.key}

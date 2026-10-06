@@ -506,8 +506,8 @@ export function SpinOverlay({
     const p = panel.current;
     if (!p) return;
     if (isXR) {
-      p.position.set(-1.28, 1.3, 0.65);
-      p.rotation.set(0, 0.78, 0);
+      p.position.set(-0.58, 1.34, 1.18);
+      p.rotation.set(0, 0.55, 0);
       p.scale.set(0.62, 0.35, 1);
     } else {
       const pc = camera as THREE.PerspectiveCamera;
@@ -515,9 +515,9 @@ export function SpinOverlay({
       const halfH = Math.tan(THREE.MathUtils.degToRad(pc.fov / 2)) * d;
       const halfW = halfH * pc.aspect;
       const h = halfH * 0.85;
-      const wPanel = Math.min(h * (4 / 3), halfW * (pc.aspect < 1 ? 0.62 : 0.9));
+      const wPanel = Math.min(h * (4 / 3), halfW * 0.9);
       const hPanel = wPanel * 0.5625;
-      _v.set(-halfW + wPanel / 2 + halfH * 0.08, halfH - hPanel / 2 - halfH * 0.72, -d);
+      _v.set(halfW - wPanel / 2 - halfH * 0.08, halfH - hPanel / 2 - halfH * 0.22, -d);
       p.position.copy(_v.applyQuaternion(pc.quaternion).add(pc.position));
       p.quaternion.copy(pc.quaternion);
       p.scale.set(wPanel, hPanel, 1);
