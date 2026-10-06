@@ -25,6 +25,16 @@ export const SHORT_PIPS_BACKSPIN_IDEAL: IdealMovement = {
   fallback: { openDeg: 32, speed: 1.8, dirDeg: -20 },
 };
 
+/** Kurzer Ball knapp hinter dem Netz: kein Topspin möglich → früh hoch ansetzen, frontal kontern. */
+export const COUNTER_SHORT_IDEAL: IdealMovement = {
+  open: [-30, 5, 5],
+  speed: [1.5, 5, 0.5],
+  dir: [-15, 10, 5],
+  fallback: { openDeg: -10, speed: 3.5, dirDeg: 0 },
+};
+/** Aufsprung höchstens so weit hinter dem Netz (m) gilt als kurzer Ball. */
+export const SHORT_BALL_Z = 0.45;
+
 /** Standard-Schupf, solange noch nichts berechnet wurde. */
 export const DEFAULT_IDEAL: IdealShot = { openDeg: 45, speed: 1.8, dirDeg: -5, wrist: 3, found: false };
 

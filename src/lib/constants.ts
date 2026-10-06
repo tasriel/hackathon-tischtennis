@@ -8,14 +8,14 @@ export const TABLE = {
 
 export const BALL_RADIUS = 0.02;
 export const GRAVITY = -9.81;
-export const DRAG = 0.12; // Luftwiderstand (a = -DRAG * |v| * v)
-export const MAGNUS = 0.004; // a = MAGNUS * (spin × v)
+export const DRAG = 0.14; // Luftwiderstand (a = -DRAG * |v| * v)
+export const MAGNUS = 0.0032; // a = MAGNUS * (spin × v)
 export const TABLE_RESTITUTION = 0.88;
 export const TABLE_FRICTION = 0.18; // Coulomb-Reibwert Ball–Tisch
 
 // Schläger (glatter Belag)
 export const RACKET_RADIUS = 0.085; // Trefferzone der Blattfläche
-export const RACKET_RESTITUTION = 0.8;
+export const RACKET_RESTITUTION = 0.72;
 export const RACKET_GRIP = 0.55; // Reibung Belag–Ball (tangential), griffiger Belag
 export const ARM_REACH = 0.75; // max. Abstand Schulter → Schläger
 

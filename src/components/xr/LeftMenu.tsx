@@ -103,8 +103,8 @@ export function Menus() {
       if (spot) setSetting("target", spot);
       const rubber = { Digit5: "smooth", Digit6: "longPips", Digit7: "shortPips", Digit8: "anti" }[e.code] as RubberType | undefined;
       if (rubber) setSetting("rubber", rubber);
-      const ret = { Digit9: 1, Digit0: 2, Minus: 3 }[e.code] as 1 | 2 | 3 | undefined;
-      if (ret) setSetting("returns", ret);
+      const ret = { Digit9: 0, Digit0: 1, Minus: 2, Equal: 3 }[e.code] as 0 | 1 | 2 | 3 | undefined;
+      if (ret !== undefined) setSetting("returns", ret);
       if (e.code === "KeyM") setSetting("slowMotion", !settings.slowMotion);
     };
     window.addEventListener("keydown", onKey);
@@ -118,14 +118,14 @@ export function Menus() {
         <MenuButton label="Aus" active={!s.slowMotion} position={[0.12, -0.035, 0]} width={0.2} height={0.08} onSelect={() => setSetting("slowMotion", false)} />
       </Panel>
 
-      <Panel title="Rückschläge" subtitle="9 / 0 / ß" angle={70} y={1.62} size={[0.54, 0.26]}>
-        {([1, 2, 3] as const).map((n, i) => (
+      <Panel title="Rückschläge" subtitle="9 / 0 / ß / ´" angle={70} y={1.62} size={[0.54, 0.26]}>
+        {([0, 1, 2, 3] as const).map((n, i) => (
           <MenuButton
             key={n}
             label={String(n)}
             active={s.returns === n}
-            position={[(i - 1) * 0.16, -0.035, 0]}
-            width={0.14}
+            position={[(i - 1.5) * 0.125, -0.035, 0]}
+            width={0.11}
             height={0.08}
             onSelect={() => setSetting("returns", n)}
           />

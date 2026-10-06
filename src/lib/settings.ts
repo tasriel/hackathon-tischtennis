@@ -4,7 +4,7 @@ import type { RubberType, ServeType } from "./constants";
 export type TargetSpot = "left" | "center" | "right";
 export const TARGET_X: Record<TargetSpot, number> = { left: -0.45, center: 0, right: 0.45 };
 
-type Settings = { serve: ServeType; target: TargetSpot; rubber: RubberType; reviewIndex: number; reviewCount: number; returns: 1 | 2 | 3; slowMotion: boolean };
+type Settings = { serve: ServeType; target: TargetSpot; rubber: RubberType; reviewIndex: number; reviewCount: number; returns: 0 | 1 | 2 | 3; slowMotion: boolean };
 
 /** Kleiner Modul-Store für die Menü-Einstellungen (ohne React-State pro Frame). */
 export const settings: Settings = { serve: "backspin", target: "center", rubber: "smooth", reviewIndex: 0, reviewCount: 0, returns: 1, slowMotion: true };

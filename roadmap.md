@@ -26,3 +26,4 @@
 - [x] Gegner Runde 3: mehr Unterschnitt beim Glatt-Schupf, fließende Gegnerbewegung, 1–3 Rückschläge, Fenster im Bogen, kurze Noppe baut Spin langsam ab, Anti mit Schnittumkehr.
 - [x] Anpassungen #3: Live-Zeitlupe schaltbar und scheitelpunktgesteuert, Topspin-Tempo begrenzen, Gegner früh antizipieren lassen, kurze-Noppe-Schupf im Review.
 - [ ] Echte Belag-Texturen für den Gegnerschläger (folgen vom Team).
+- [x] Anpassungen #4 (Rückschläge 0, Echtzeit-Tempo, Zeitlupe am Plattenende, Seitschnitt-Anzeige, Konter bei kurzem Ball)
