@@ -21,3 +21,5 @@
 - [x] Hallenlinien blasser und nur in der Hauptansicht sichtbar; Review-Fenster deckend; Außenringe des Targets lösen Treffer-Effekte aus.
 - [x] Review-Fenster und Rahmen vor transparentem Netz und übriger Halle zeichnen, ohne das Netz in der Replay-Aufnahme zu entfernen.
 - [ ] Test auf der Quest 3 (braucht das Headset).
+- [x] Gegner mit vier Belägen (Glatt, lange Noppe, kurze Noppe, Anti), Fenster „Belag Gegner“, zwei Review-Aufnahmen mit Pfeilen.
+- [ ] Echte Belag-Texturen für den Gegnerschläger (folgen vom Team).
