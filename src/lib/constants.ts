@@ -56,6 +56,9 @@ export type Rubber = {
   grip: number;
   restitution: number;
   spinKeep: number;
+  /** Aufprall-Normaltempo (m/s), ab dem der ankommende Spin komplett geschluckt wird
+   *  (Eindringen in den Belag). Ohne Wert: konstanter spinKeep. */
+  spinDamp?: number;
   color: string;
   /** Ziel-Aufsprung auf der Spielerseite (z, Abstand vom Netz) */
   targetZ: number;
@@ -66,26 +69,26 @@ export type Rubber = {
 /** Gegner spielt vorerst immer in die Vorhand des (rechtshändigen) Spielers. */
 export const OPPONENT_TARGET_X = 0.38;
 /** gewünschte Höhe über der Netzkante (m) – eher etwas höher als flach */
-export const OPPONENT_NET_GAP = 0.28;
+export const OPPONENT_NET_GAP = 0.17;
 export const RUBBERS: Record<RubberType, Rubber> = {
   smooth: {
-    label: "Glatt", grip: 0.4, restitution: 0.62, spinKeep: 1, color: "#c0392b", targetZ: 0.95,
-    vsBack: { stroke: "Topspin", open: [-35, 10, 5], speed: [2, 4.5, 0.5], dir: [20, 70, 10], typ: { open: -15, speed: 3, dir: 45 }, wantSpin: "TOPSPIN" },
-    vsTop: { stroke: "Konter / leichter Topspin", open: [-30, 5, 5], speed: [1, 3, 0.25], dir: [0, 35, 5], typ: { open: -12, speed: 1.8, dir: 15 }, wantSpin: "TOPSPIN" },
+    label: "Glatt", grip: 0.5, restitution: 0.5, spinKeep: 1, color: "#c0392b", targetZ: 0.95,
+    vsBack: { stroke: "Schupf", open: [25, 60, 5], speed: [0.4, 1.8, 0.2], dir: [-25, 10, 5], typ: { open: 42, speed: 1.0, dir: -8 }, wantSpin: "BACKSPIN" },
+    vsTop: { stroke: "Topspin (Konter)", open: [-35, 0, 5], speed: [1, 3, 0.25], dir: [5, 40, 5], typ: { open: -15, speed: 1.8, dir: 20 }, wantSpin: "TOPSPIN" },
   },
   longPips: {
-    label: "lange Noppe", grip: 0.06, restitution: 0.4, spinKeep: 0.9, color: "#1f2937", targetZ: 0.85,
-    vsBack: { stroke: "Block (Spin-Umkehr)", open: [-10, 35, 5], speed: [0.1, 1.0, 0.15], dir: [-20, 20, 10], typ: { open: 10, speed: 0.4, dir: 0 }, wantSpin: null },
-    vsTop: { stroke: "Block (Spin-Umkehr)", open: [-15, 30, 5], speed: [0.1, 1.0, 0.15], dir: [-20, 20, 10], typ: { open: 0, speed: 0.3, dir: 0 }, wantSpin: null },
+    label: "lange Noppe", grip: 0.06, restitution: 0.35, spinKeep: 0.9, color: "#1f2937", targetZ: 0.85,
+    vsBack: { stroke: "Schupf (Spin-Umkehr)", open: [10, 50, 5], speed: [0.2, 1.2, 0.2], dir: [-25, 5, 5], typ: { open: 30, speed: 0.6, dir: -10 }, wantSpin: null },
+    vsTop: { stroke: "Schupf steil nach unten", open: [5, 50, 5], speed: [0.3, 1.6, 0.2], dir: [-55, -15, 5], typ: { open: 25, speed: 0.9, dir: -35 }, wantSpin: "BACKSPIN" },
   },
   shortPips: {
-    label: "kurze Noppe", grip: 0.25, restitution: 0.5, spinKeep: 0.6, color: "#2563eb", targetZ: 0.9,
-    vsBack: { stroke: "Schupf", open: [25, 60, 5], speed: [0.4, 1.8, 0.2], dir: [-20, 20, 10], typ: { open: 40, speed: 0.9, dir: 0 }, wantSpin: "BACKSPIN" },
-    vsTop: { stroke: "Konter / Block", open: [-25, 10, 5], speed: [0.2, 1.6, 0.2], dir: [-10, 20, 5], typ: { open: -8, speed: 0.8, dir: 5 }, wantSpin: null },
+    label: "kurze Noppe", grip: 0.18, restitution: 0.4, spinKeep: 0.8, spinDamp: 7, color: "#2563eb", targetZ: 0.9,
+    vsBack: { stroke: "Schupf (frontal)", open: [15, 50, 5], speed: [0.3, 1.6, 0.2], dir: [-15, 10, 5], typ: { open: 30, speed: 0.8, dir: -3 }, wantSpin: "BACKSPIN" },
+    vsTop: { stroke: "Konter / Block (frontal)", open: [-25, 10, 5], speed: [0.2, 1.6, 0.2], dir: [0, 25, 5], typ: { open: -8, speed: 0.8, dir: 10 }, wantSpin: null },
   },
   anti: {
-    label: "Anti", grip: 0.01, restitution: 0.3, spinKeep: 0.05, color: "#a16207", targetZ: 0.55,
-    vsBack: { stroke: "passiver Block", open: [-10, 50, 5], speed: [0, 1.0, 0.1], dir: [-15, 25, 10], typ: { open: 15, speed: 0.2, dir: 0 }, wantSpin: null },
-    vsTop: { stroke: "passiver Block", open: [-15, 45, 5], speed: [0, 1.0, 0.1], dir: [-15, 25, 10], typ: { open: 5, speed: 0.1, dir: 0 }, wantSpin: null },
+    label: "Anti", grip: 0.01, restitution: 0.22, spinKeep: 0.03, color: "#a16207", targetZ: 0.45,
+    vsBack: { stroke: "frontaler Schupf (offen)", open: [10, 50, 5], speed: [0, 0.8, 0.1], dir: [-15, 15, 5], typ: { open: 30, speed: 0.2, dir: 0 }, wantSpin: null },
+    vsTop: { stroke: "frontaler Schupf (geschlossen)", open: [-35, 5, 5], speed: [0, 0.8, 0.1], dir: [-15, 15, 5], typ: { open: -20, speed: 0.2, dir: 0 }, wantSpin: null },
   },
 };
