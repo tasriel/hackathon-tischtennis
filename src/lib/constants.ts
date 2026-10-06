@@ -84,7 +84,7 @@ export const RUBBERS: Record<RubberType, Rubber> = {
     vsTop: { stroke: "Schupf steil nach unten", open: [5, 50, 5], speed: [0.5, 3.5, 0.25], dir: [-55, -15, 5], typ: { open: 25, speed: 1.8, dir: -35 }, wantSpin: "BACKSPIN" },
   },
   shortPips: {
-    label: "kurze Noppe", grip: 0.4, restitution: 0.4, spinKeep: 0.92, spinDamp: 16, color: "#2563eb", targetZ: 0.9,
+    label: "kurze Noppe", grip: 0.3, restitution: 0.4, spinKeep: 0.92, spinDamp: 16, color: "#2563eb", targetZ: 0.9,
     vsBack: { stroke: "Schupf (frontal)", open: [15, 55, 5], speed: [0.5, 3.5, 0.25], dir: [-20, 10, 5], typ: { open: 35, speed: 1.8, dir: -6 }, wantSpin: "BACKSPIN" },
     vsTop: { stroke: "Konter / Block (frontal)", open: [-25, 10, 5], speed: [0.5, 3.5, 0.25], dir: [0, 25, 5], typ: { open: -8, speed: 1.6, dir: 10 }, wantSpin: null },
   },
