@@ -11,12 +11,13 @@ import {
   MAX_WRIST,
   resetServe,
   spinType,
+  isSideDominant,
   stepBall,
   type RacketState,
 } from "@/lib/physics";
 import { timeScaleFor } from "@/lib/timescale";
 import { predictReturn } from "@/lib/trajectory";
-import { defaultIdeal, findIdealShot, SHORT_PIPS_BACKSPIN_IDEAL } from "@/lib/idealShot";
+import { COUNTER_SHORT_IDEAL, defaultIdeal, findIdealShot, SHORT_BALL_Z, SHORT_PIPS_BACKSPIN_IDEAL } from "@/lib/idealShot";
 import { setSetting, settings } from "@/lib/settings";
 import { STROKES } from "@/lib/strokes";
 import { Menus } from "./LeftMenu";
