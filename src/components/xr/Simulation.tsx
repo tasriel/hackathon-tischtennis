@@ -110,11 +110,13 @@ export function Simulation() {
     phase: "p1" as "p1" | "opp" | "p2",
     plan: null as OpponentPlan | null,
     oppClock: 0,
+    /** bisherige Rückschläge des Gegners in diesem Ballwechsel */
+    returns: 0,
   });
 
   const ballGroup = useRef<THREE.Group>(null);
   const racketGroup = useRef<THREE.Group>(null);
-  const shots = useMemo(() => [makeSnapshot(), makeSnapshot()], []);
+  const shots = useMemo(() => [makeSnapshot(), makeSnapshot(), makeSnapshot(), makeSnapshot()], []);
   const snap = useRef<ContactSnapshot>(shots[0]!);
   const recording = useRef<ContactSnapshot>(shots[0]!);
   const oppGroup = useRef<THREE.Group>(null);
@@ -166,6 +168,7 @@ export function Simulation() {
     s.phase = "p1";
     s.plan = null;
     s.oppClock = 0;
+    s.returns = 0;
   };
 
   const prepareShot = (i: number, kind: ServeType, heading: string) => {
@@ -175,7 +178,7 @@ export function Simulation() {
     sh.clip = [];
     sh.kind = kind;
     sh.ideal = defaultIdeal(kind);
-    sh.label = `Schlag ${i + 1}/2`;
+    sh.label = `Schlag ${i + 1}/${settings.returns + 1}`;
     sh.heading = heading;
     snap.current = sh;
     recording.current = sh;
@@ -190,6 +193,7 @@ export function Simulation() {
     lastTest.pos.copy(racket.pos);
     lastTest.normal.copy(racket.normal);
     s.phase = "p2";
+    s.returns++;
     s.hit = false;
     s.flashTarget = "none";
     s.metrics = null;
@@ -198,9 +202,9 @@ export function Simulation() {
     s.incoming = st;
     const kind: ServeType = side ? "sidespin" : st === "BACKSPIN" ? "backspin" : "topspin";
     const rb = RUBBERS[plan.rubber];
-    prepareShot(1, kind, `Gegner ${rb.label} → ${STROKES[kind].stroke}`);
-    setSetting("reviewCount", 2);
-    setSetting("reviewIndex", 1);
+    prepareShot(s.returns, kind, `Gegner ${rb.label} → ${STROKES[kind].stroke}`);
+    setSetting("reviewCount", s.returns + 1);
+    setSetting("reviewIndex", s.returns);
   };
 
   useEffect(() => {
@@ -377,7 +381,7 @@ export function Simulation() {
           };
           const sn = recording.current;
           snap.current = sn;
-          setSetting("reviewIndex", s.phase === "p2" ? 1 : 0);
+          setSetting("reviewIndex", s.returns);
           sn.active = true;
           sn.t0 = performance.now();
           sn.point.copy(lastContact.point);
@@ -414,7 +418,7 @@ export function Simulation() {
           targetImpact.current.x = ball.pos.x;
           targetImpact.current.z = ball.pos.z;
           targetImpact.current.sequence++;
-          const plan = s.phase === "p1" ? planOpponent(ball, settings.rubber) : null;
+          const plan = s.returns < settings.returns ? planOpponent(ball, settings.rubber) : null;
           if (plan) {
             s.phase = "opp";
             s.plan = plan;
@@ -465,7 +469,7 @@ export function Simulation() {
     }
 
     // ---------- Review-Auswahl ----------
-    const pick = shots[Math.min(settings.reviewIndex, 1)]!;
+    const pick = shots[Math.min(settings.reviewIndex, shots.length - 1)]!;
     if (settings.reviewCount > 1 && snap.current !== pick) snap.current = pick;
 
     // ---------- Gegner-Schläger ----------
@@ -484,35 +488,39 @@ export function Simulation() {
         const back = Math.min(0.32, 0.12 + sp * 0.05);
         const follow = Math.min(0.3, 0.1 + sp * 0.06);
         const axis = _oppA.crossVectors(_tmp, _Yup).normalize();
+        // Zeit bis zum Treffer ab Aufsprung: erst Anfahrt + Blatt eindrehen, dann gerader Schwung
+        const T = Math.max(0.15, plan.steps * PHYS_DT);
+        const swing = Math.min(0.22, T * 0.45);
         let off: number, wrist: number, w: number;
-        if (tc < -0.2) {
-          // Anlauf zur Ausholposition
-          w = THREE.MathUtils.smoothstep(tc, -0.75, -0.2);
+        if (tc < -swing) {
+          // Anfahrt zur Ausholposition, Blattwinkel dreht dabei schon ein
+          w = THREE.MathUtils.smootherstep(tc, -T, -swing);
           off = -back;
-          wrist = 0.45;
+          wrist = 0;
         } else if (tc < 0) {
-          const k = THREE.MathUtils.smoothstep(tc, -0.2, 0);
+          // Schwung von hinten nach vorne mit festem Blattwinkel
+          const k = (tc + swing) / swing;
           w = 1;
           off = -back * (1 - k);
-          wrist = 0.45 * (1 - k);
-        } else if (tc < 0.18) {
-          const k = THREE.MathUtils.smoothstep(tc, 0, 0.18);
+          wrist = 0;
+        } else if (tc < 0.2) {
+          const k = THREE.MathUtils.smoothstep(tc, 0, 0.2);
           w = 1;
           off = follow * k;
-          wrist = -0.4 * k;
+          wrist = -0.3 * k;
         } else {
-          w = 1 - THREE.MathUtils.smoothstep(tc, 0.3, 1.1);
+          w = 1 - THREE.MathUtils.smootherstep(tc, 0.3, 1.1);
           off = follow;
-          wrist = -0.4;
+          wrist = -0.3;
         }
         const at = _c2.copy(plan.point).addScaledVector(_tmp, off);
         _oppP.lerp(at, w);
         _wristN.copy(plan.normal).applyAxisAngle(axis, wrist);
         _oppN.lerp(_wristN, w).normalize();
       }
-      og.position.lerp(_oppP, 1 - Math.exp(-40 * dt));
+      og.position.copy(_oppP);
       _q.setFromUnitVectors(_X, _oppN);
-      og.quaternion.slerp(_q, 1 - Math.exp(-30 * dt));
+      og.quaternion.copy(_q);
       oppFace.current?.color.set(RUBBERS[settings.rubber].color);
     }
 
