@@ -192,6 +192,7 @@ const idealDir = (dirDeg: number, out: THREE.Vector3) => {
 
 /** Kurze, konkrete Korrekturen aus der Abweichung zum Ideal. */
 function advice(s: ContactSnapshot): string[] {
+  if (s.tip) return [s.tip];
   const i = s.ideal;
   const parts: string[] = [];
   const dOpen = i.openDeg - s.openDeg;
@@ -200,7 +201,7 @@ function advice(s: ContactSnapshot): string[] {
   if (Math.abs(dv) > 0.5) parts.push(`${fmt(Math.abs(dv))} m/s ${dv > 0 ? "schneller" : "langsamer"}`);
   const dDir = i.dirDeg - s.dirDeg;
   if (Math.abs(dDir) > 12) parts.push(`${Math.abs(Math.round(dDir))}° ${dDir > 0 ? "steiler nach oben" : "flacher nach vorn"}`);
-  return parts.length ? parts : [s.tip ?? "Genau so wiederholen!"];
+  return parts.length ? parts : ["Genau so wiederholen!"];
 }
 
 const RANK = { [OK]: 0, [NEAR]: 1, [FAR]: 2 } as Record<string, number>;

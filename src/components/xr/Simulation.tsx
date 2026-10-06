@@ -114,6 +114,8 @@ export function Simulation() {
     returns: 0,
     /** Der ankommende Ball ist auf der Spielerseite genau einmal aufgesprungen. */
     bouncedNear: false,
+    /** Aufsprünge auf der Gegnerseite seit dem Spielerkontakt. */
+    opponentBounces: 0,
   });
 
   const ballGroup = useRef<THREE.Group>(null);
@@ -172,6 +174,7 @@ export function Simulation() {
     s.oppClock = 0;
     s.returns = 0;
     s.bouncedNear = false;
+    s.opponentBounces = 0;
   };
 
   const prepareShot = (i: number, kind: ServeType, heading: string) => {
@@ -201,6 +204,7 @@ export function Simulation() {
     s.returns++;
     s.hit = false;
     s.bouncedNear = false;
+    s.opponentBounces = 0;
     s.flashTarget = "none";
     s.metrics = null;
     const side = Math.abs(ball.spin.y) > Math.hypot(ball.spin.x, ball.spin.z) * 0.8;
@@ -428,11 +432,13 @@ export function Simulation() {
             s.phase = "opp";
             s.plan = nextPlan;
             s.oppClock = 0;
+            s.opponentBounces = 0;
           }
         } else if (!s.done && (ball.pos.z > CONTACT_Z + 0.6 || ev === "floor")) finish("miss");
       } else if (!s.done && s.phase === "opp") {
         s.oppClock += PHYS_DT;
-        if (s.plan && s.oppClock >= s.plan.steps * PHYS_DT - 1e-6) opponentHit();
+        if (ev === "table-far" && ++s.opponentBounces > 1) finish("success");
+        else if (s.plan && s.oppClock >= s.plan.steps * PHYS_DT - 1e-6) opponentHit();
         else if (ev && ev !== "table-far") finish("success");
       } else if (!s.done) {
         if (ev === "net") finish("net");
