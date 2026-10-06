@@ -43,7 +43,7 @@ function BallSpinLabel({ ball }: { ball: ReturnType<typeof makeBall> }) {
   useFrame(() => {
     const w = ball.spin.length();
     let next = "";
-    if (w > 5) next = Math.abs(ball.spin.y) > Math.hypot(ball.spin.x, ball.spin.z) * 0.8 ? "SIDE" : spinType(ball);
+    if (w > 5) next = isSideDominant(ball.spin) ? "SIDE" : spinType(ball);
     if (next !== k) setK(next);
   });
   const d = SPIN_DE[k];
@@ -114,6 +114,7 @@ export function Simulation() {
     returns: 0,
     /** Der ankommende Ball ist auf der Spielerseite genau einmal aufgesprungen. */
     bouncedNear: false,
+    nearBounceZ: Infinity,
     /** Aufsprünge auf der Gegnerseite seit dem Spielerkontakt. */
     opponentBounces: 0,
   });
@@ -174,6 +175,7 @@ export function Simulation() {
     s.oppClock = 0;
     s.returns = 0;
     s.bouncedNear = false;
+    s.nearBounceZ = Infinity;
     s.opponentBounces = 0;
   };
 
@@ -204,10 +206,11 @@ export function Simulation() {
     s.returns++;
     s.hit = false;
     s.bouncedNear = false;
+    s.nearBounceZ = Infinity;
     s.opponentBounces = 0;
     s.flashTarget = "none";
     s.metrics = null;
-    const side = Math.abs(ball.spin.y) > Math.hypot(ball.spin.x, ball.spin.z) * 0.8;
+    const side = isSideDominant(ball.spin);
     const st = spinType(ball);
     s.incoming = st;
     const kind: ServeType = side ? "sidespin" : st === "BACKSPIN" ? "backspin" : "topspin";
@@ -360,7 +363,7 @@ export function Simulation() {
 
     // ---------- Simulation ----------
     const sinceHit = (performance.now() - s.hitAt) / 1000;
-    const scale = s.done && !s.hit ? 1 : timeScaleFor(settings.slowMotion, s.bouncedNear, ball.vel.y, s.hit, sinceHit);
+    const scale = s.done && !s.hit ? 1 : timeScaleFor(settings.slowMotion, s.bouncedNear, ball.vel.y, s.hit, sinceHit, ball.pos.z, ball.vel.z);
     s.scale = scale;
     racket.timeScale = scale;
     stepR.timeScale = scale;
@@ -375,7 +378,10 @@ export function Simulation() {
       if (!s.hit) {
         if (ev === "table-near") {
           if (s.bouncedNear) finish("own");
-          else s.bouncedNear = true;
+          else {
+            s.bouncedNear = true;
+            s.nearBounceZ = ball.pos.z;
+          }
         }
         const a = steps / Math.max(planned, 1);
         stepR.pos.lerpVectors(_lastRacket, racket.pos, a);
@@ -420,11 +426,22 @@ export function Simulation() {
             const sb = lastContact.spinBefore;
             const vb = _tmp.copy(lastContact.velBefore).setY(0).normalize();
             const top = _c2.crossVectors(sb, _Yup).dot(vb);
-            const side = Math.abs(sb.y) > Math.hypot(sb.x, sb.z) * 0.8 && sb.length() > 5;
+            const side = isSideDominant(sb);
             sn.kind = side ? "sidespin" : top < -8 ? "backspin" : "topspin";
           }
           const shortPipsPush = sn.kind === "backspin" && s.returns > 0 && s.plan?.rubber === "shortPips";
-          sn.ideal = findIdealShot(lastContact.point, lastContact.velBefore, lastContact.spinBefore, sn.kind, shortPipsPush ? SHORT_PIPS_BACKSPIN_IDEAL : undefined);
+          const shortBall = sn.kind !== "backspin" && s.nearBounceZ < SHORT_BALL_Z;
+          if (shortBall) {
+            sn.strokeLabel = "Konter / Schuss";
+            sn.tip = "Früh hoch ansetzen, frontal durchschlagen, kleiner Handgelenkschwung.";
+          }
+          sn.ideal = findIdealShot(
+            lastContact.point,
+            lastContact.velBefore,
+            lastContact.spinBefore,
+            sn.kind,
+            shortBall ? COUNTER_SHORT_IDEAL : shortPipsPush ? SHORT_PIPS_BACKSPIN_IDEAL : undefined,
+          );
           s0.clipPending = true;
           sn.explain = explainContact(s.metrics);
           const nextPlan = s.returns < settings.returns ? planOpponentFromFlight(ball, settings.rubber) : null;

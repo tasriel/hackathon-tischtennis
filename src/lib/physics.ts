@@ -235,7 +235,11 @@ export function collideRacket(
   }
 
   // Begrenzen, damit nichts explodiert
-  const maxOutgoingSpeed = rubber ? 10.5 : Math.min(9, Math.max(6.5, lastContact.velBefore.length() + 2));
+  // Spieler: Ausgangstempo an Schlägertempo koppeln – ein Schupf bleibt langsam, ein Konter
+  // darf schneller werden, aber nie deutlich über realistische Grundschlag-Tempi.
+  const maxOutgoingSpeed = rubber
+    ? 10.5
+    : Math.min(7.5, Math.max(3.5, 0.45 * lastContact.velBefore.length() + 1.1 * _rv.length() + 0.8));
   if (b.vel.length() > maxOutgoingSpeed) b.vel.setLength(maxOutgoingSpeed);
   if (b.spin.length() > 180) b.spin.setLength(180);
 
@@ -248,6 +252,11 @@ export function collideRacket(
   lastContact.point.copy(b.pos);
   b.pos.addScaledVector(_n, BALL_RADIUS * 1.2);
   return true;
+}
+
+/** Seitschnitt nur, wenn er sichtbar überwiegt (nicht bei leichtem Seitanteil). */
+export function isSideDominant(spin: THREE.Vector3) {
+  return Math.abs(spin.y) > 30 && Math.abs(spin.y) > Math.hypot(spin.x, spin.z) * 1.5;
 }
 
 /** Spin-Art relativ zur Flugrichtung. */
