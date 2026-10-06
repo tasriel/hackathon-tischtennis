@@ -472,6 +472,7 @@ export function Simulation() {
     const og = oppGroup.current;
     if (og) {
       const plan = s.plan;
+      if (plan && s.phase === "p2") s.oppClock += dt * scale;
       const tc = plan ? s.oppClock - plan.steps * PHYS_DT : -10;
       _oppN.copy(oppRest.normal);
       _oppP.copy(oppRest.pos);
