@@ -37,3 +37,39 @@ export const SERVE = SERVES.backspin;
 // Zeitlupe
 export const TIME_MIN = 0.1;
 export const TIME_MAX = 1.0;
+
+// Beläge des Gegners. grip = Reibung Belag–Ball, restitution = Rückprall, spinKeep = Anteil des
+// ankommenden Spins, der den Kontakt übersteht (wenig Reibung ⇒ Spin bleibt in Weltrichtung ⇒ Spin-Umkehr).
+export type RubberType = "smooth" | "longPips" | "shortPips" | "anti";
+export type Rubber = {
+  label: string;
+  stroke: string;
+  grip: number;
+  restitution: number;
+  spinKeep: number;
+  color: string;
+  /** Suchraster [min, max, Schritt] und typische Werte der Lehrbewegung */
+  open: [number, number, number];
+  speed: [number, number, number];
+  dir: [number, number, number];
+  typ: { open: number; speed: number; dir: number };
+  wantSpin: "TOPSPIN" | "BACKSPIN" | null;
+};
+export const RUBBERS: Record<RubberType, Rubber> = {
+  smooth: {
+    label: "Glatt", stroke: "Topspin", grip: 0.55, restitution: 0.8, spinKeep: 1, color: "#c0392b",
+    open: [-35, -5, 5], speed: [2.5, 5.5, 0.5], dir: [10, 50, 10], typ: { open: -20, speed: 4, dir: 30 }, wantSpin: "TOPSPIN",
+  },
+  longPips: {
+    label: "lange Noppe", stroke: "Block (Spin-Umkehr)", grip: 0.08, restitution: 0.55, spinKeep: 0.9, color: "#1f2937",
+    open: [-10, 35, 5], speed: [0.3, 2.1, 0.3], dir: [-20, 10, 10], typ: { open: 5, speed: 0.9, dir: 0 }, wantSpin: null,
+  },
+  shortPips: {
+    label: "kurze Noppe", stroke: "flacher Konter", grip: 0.3, restitution: 0.85, spinKeep: 0.6, color: "#2563eb",
+    open: [-20, 15, 5], speed: [2, 5.5, 0.5], dir: [-5, 20, 5], typ: { open: -5, speed: 3.5, dir: 5 }, wantSpin: null,
+  },
+  anti: {
+    label: "Anti", stroke: "passiver Block", grip: 0.03, restitution: 0.45, spinKeep: 0.35, color: "#a16207",
+    open: [-5, 40, 5], speed: [0.2, 1.4, 0.3], dir: [-15, 5, 10], typ: { open: 10, speed: 0.5, dir: 0 }, wantSpin: null,
+  },
+};
