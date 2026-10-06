@@ -10,17 +10,25 @@ Ein interaktiver Lernmoment für Meta Quest 3: Einen Ball mit **Unterschnitt zur
 
 ## Deployment
 
-Die Anwendung läuft unter [spincorrect.icken.eu](https://spincorrect.icken.eu) auf einem Netcup-Webhosting.
+Die Anwendung läuft unter [spincorrect.icken.eu](https://spincorrect.icken.eu) auf einem Netcup-Webhosting. Der Entwicklungsstand läuft parallel auf einer eigenen dev-Subdomain.
+
+**Branches**
+
+| Quell-Branch | Build-Branch | Ziel |
+| --- | --- | --- |
+| `main` | `deploy` | Produktion ([spincorrect.icken.eu](https://spincorrect.icken.eu)) |
+| `dev` | `deploy-dev` | Entwicklung ([spincorrect-dev.icken.eu](https://spincorrect-dev.icken.eu)) |
 
 **Ablauf**
 
-1. Ein Push auf `main` startet den Workflow `.github/workflows/deploy.yml`.
-2. Der Workflow baut die Anwendung mit `bun run build` und schreibt den Inhalt von `.output/public` in den Branch `deploy`.
-3. GitHub benachrichtigt Plesk über einen Webhook. Plesk holt den Branch `deploy` ab und legt ihn in den Dokumentenstamm der Subdomain.
+1. Ein Push auf `main` oder `dev` startet den Workflow `.github/workflows/deploy.yml`.
+2. Der Workflow baut die Anwendung mit `bun run build` und schreibt den Inhalt von `.output/public` in den zugehörigen Build-Branch (`main` → `deploy`, `dev` → `deploy-dev`).
+3. GitHub benachrichtigt Plesk über einen Webhook. Plesk holt den Build-Branch ab und legt ihn in den Dokumentenstamm der jeweiligen Subdomain.
 
 **Hinweise**
 
-- Der Branch `deploy` enthält ausschließlich Build-Ergebnisse und wird vom Workflow geschrieben. Bitte nicht von Hand bearbeiten.
+- Die Branches `deploy` und `deploy-dev` enthalten ausschließlich Build-Ergebnisse und werden vom Workflow geschrieben. Bitte nicht von Hand bearbeiten.
+- Beide Build-Branches sind per Ruleset gegen Pushes, Löschen und Force-Pushes geschützt. Ausgenommen ist nur der Deploy Key, mit dem der Workflow schreibt (Repository-Secret `DEPLOY_KEY`).
 - Auf GitHub liegen keine Zugangsdaten zum Server. Die Verbindung geht vom Server aus (Plesk → GitHub).
 - 3D-Modelle und Texturen liegen unter `public/models` und `public/textures` im Repository.
 

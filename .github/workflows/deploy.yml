@@ -3,17 +3,33 @@ name: Build and publish to deploy branch
 on:
   push:
     branches:
-      - main  # oder master, je nach deinem Standard-Branch
+      - main  # Produktion  -> Branch "deploy"
+      - dev   # Entwicklung -> Branch "deploy-dev"
+
+# Pro Quell-Branch läuft immer nur ein Deploy gleichzeitig; ältere Läufe werden abgebrochen.
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # darf den deploy-Branch schreiben
+      contents: read  # Schreiben auf die deploy-Branches läuft über den Deploy Key
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      # Ziel-Branch anhand des Quell-Branches wählen
+      - name: Select target branch
+        id: target
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            echo "branch=deploy" >> "$GITHUB_OUTPUT"
+          else
+            echo "branch=deploy-dev" >> "$GITHUB_OUTPUT"
+          fi
 
       # Bun installieren (dieses Projekt nutzt bun.lock)
       - name: Setup Bun
@@ -27,11 +43,13 @@ jobs:
           bun install --frozen-lockfile
           bun run build
 
-      # Gebauten Web-Ordner (.output/public) in den Branch "deploy" schreiben.
-      # Plesk (Netcup) holt diesen Branch per Webhook ab und legt ihn in den Dokumentenstamm.
-      - name: Publish build to deploy branch
+      # Gebauten Web-Ordner (.output/public) in den Ziel-Branch ("deploy" bzw. "deploy-dev") schreiben.
+      # Plesk (Netcup) holt den Branch per Webhook ab und legt ihn in den Dokumentenstamm.
+      # Geschrieben wird per Deploy Key (Secret DEPLOY_KEY), weil nur dieser in den
+      # Branch-Schutzregeln der deploy-Branches als Ausnahme (Bypass) eingetragen ist.
+      - name: Publish build to target branch
         uses: peaceiris/actions-gh-pages@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          deploy_key: ${{ secrets.DEPLOY_KEY }}
           publish_dir: .output/public
-          publish_branch: deploy
+          publish_branch: ${{ steps.target.outputs.branch }}
