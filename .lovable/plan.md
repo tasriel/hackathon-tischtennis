@@ -18,7 +18,7 @@ Trigger -> Einspielen (Schnitt-Variante) -> du schlägst (Schlag 1)
 | Anti | fast keine Reibung, schluckt Tempo und Spin | passives Blocken | kaum Spin, leichte Umkehr, sehr langsam, kurz |
 
 - Der Rückball wird aus dem echten Ball nach deinem Schlag berechnet (ankommender Spin zählt), nicht fest vorgegeben – so funktioniert z.B. die Spin-Umkehr der langen Noppe ehrlich.
-- Der Belag beeinflusst zusätzlich leicht das erste Einspielen (Tempo/Bogen; z.B. Anti langsamer, kurze Noppe flacher). Der Spin des ersten Balls kommt weiterhin aus "Schnitt-Variante".
+- Das erste Einspielen bleibt ein normaler Ballmaschinenball wie bisher (nur "Schnitt-Variante"); der Belag wirkt ausschließlich auf den Rückschlag des Gegners.
 
 ## Neues Fenster "Belag Gegner"
 - Optionen untereinander: Glatt, lange Noppe, kurze Noppe, Anti. Desktop zusätzlich Tasten 5/6/7/8.
@@ -35,7 +35,8 @@ Trigger -> Einspielen (Schnitt-Variante) -> du schlägst (Schlag 1)
 - Perfekter Schlag und Coaching für Schlag 2 richten sich nach Spin und Tempo des Gegnerballs.
 
 ## Nicht jetzt
-Punkte, längere Ballwechsel, echte Belag-Texturen (folgen später).
+Punkte, längere Ballwechsel, echte Belag-Texturen (folgen später), Aufschläge mit besonderen Belägen.
+
 
 ## Technische Details
 - `constants.ts`: `RubberType = "smooth" | "longPips" | "shortPips" | "anti"`, `RUBBERS` mit grip, restitution, spinReversal (0–1), speedFactor, Ziel-Schwungrichtung/Blattwinkel; Serve-Modifikator pro Belag.
