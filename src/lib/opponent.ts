@@ -5,7 +5,7 @@ import { cloneBall, collideRacket, spinType, stepBall, type BallState, type Rack
 export const OPP_DT = 1 / 240;
 
 export type OpponentPlan = {
-  /** Physikschritte ab dem Aufsprung auf der Gegnerseite bis zum Treffer */
+  /** Physikschritte ab Planungszeitpunkt bis zum Treffer */
   steps: number;
   point: THREE.Vector3;
   normal: THREE.Vector3;
@@ -17,6 +17,24 @@ export type OpponentPlan = {
   /** Vorab berechneter Ballzustand direkt nach dem Treffer – garantiert den Rückschlag */
   result: { pos: THREE.Vector3; vel: THREE.Vector3; spin: THREE.Vector3 };
 };
+
+/**
+ * Plant bereits direkt nach dem Spielerkontakt. Der Treffer wird ausschließlich
+ * zwischen dem ersten und einem möglichen zweiten Aufsprung auf der Gegnerseite gewählt.
+ */
+export function planOpponentFromFlight(ballAfterPlayerHit: BallState, rubber: RubberType): OpponentPlan | null {
+  const flight = cloneBall(ballAfterPlayerHit);
+  for (let stepsToBounce = 1; stepsToBounce <= 720; stepsToBounce++) {
+    const ev = stepBall(flight, OPP_DT);
+    if (ev === "table-far") {
+      const plan = planOpponent(flight, rubber);
+      plan.steps += stepsToBounce;
+      return plan;
+    }
+    if (ev === "net" || ev === "floor" || ev === "table-near") return null;
+  }
+  return null;
+}
 
 const _prev = new THREE.Vector3();
 const _Y = new THREE.Vector3(0, 1, 0);
@@ -145,7 +163,7 @@ function fallbackPlan(contact: BallState, steps: number, rubber: RubberType, str
   const spec = RUBBERS[rubber];
   // lange Noppe und Anti behalten den Weltspin (Umkehr), die anderen Beläge drehen nicht um
   const keepWorld = rubber === "longPips" || rubber === "anti";
-  const spin = contact.spin.clone().multiplyScalar(spec.spinKeep * (keepWorld ? 0.8 : 0.5));
+  const spin = contact.spin.clone().multiplyScalar(spec.spinKeep * (keepWorld ? 0.8 : rubber === "shortPips" ? 0.72 : 0.5));
   if (!keepWorld) { spin.x = -spin.x; spin.z = -spin.z; }
   const t = cloneBall(contact);
   let best = { vel: new THREE.Vector3(0, 2, 4), score: -Infinity };

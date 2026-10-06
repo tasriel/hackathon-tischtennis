@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import * as THREE from "three";
 import { RUBBERS, type RubberType, type ServeType } from "@/lib/constants";
-import { setSetting, useSettings, type TargetSpot } from "@/lib/settings";
+import { setSetting, settings, useSettings, type TargetSpot } from "@/lib/settings";
 import { STROKES } from "@/lib/strokes";
 import { Label } from "./Label";
 
@@ -105,6 +105,7 @@ export function Menus() {
       if (rubber) setSetting("rubber", rubber);
       const ret = { Digit9: 1, Digit0: 2, Minus: 3 }[e.code] as 1 | 2 | 3 | undefined;
       if (ret) setSetting("returns", ret);
+      if (e.code === "KeyM") setSetting("slowMotion", !settings.slowMotion);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -112,6 +113,11 @@ export function Menus() {
 
   return (
     <>
+      <Panel title="Slow-Motion" subtitle="M" angle={100} y={1.4} size={[0.54, 0.26]}>
+        <MenuButton label="An" active={s.slowMotion} position={[-0.12, -0.035, 0]} width={0.2} height={0.08} onSelect={() => setSetting("slowMotion", true)} />
+        <MenuButton label="Aus" active={!s.slowMotion} position={[0.12, -0.035, 0]} width={0.2} height={0.08} onSelect={() => setSetting("slowMotion", false)} />
+      </Panel>
+
       <Panel title="Rückschläge" subtitle="9 / 0 / ß" angle={70} y={1.62} size={[0.54, 0.26]}>
         {([1, 2, 3] as const).map((n, i) => (
           <MenuButton

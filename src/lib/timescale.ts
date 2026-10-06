@@ -1,4 +1,4 @@
-import { CONTACT_Z, TIME_MAX, TIME_MIN } from "./constants";
+import { GRAVITY, TIME_MAX, TIME_MIN } from "./constants";
 
 const smooth = (t: number) => t * t * (3 - 2 * t);
 
@@ -8,16 +8,29 @@ export const FREEZE_SECONDS = 0.6;
 export const RAMP_SECONDS = 0.5;
 export const FREEZE_SCALE = 0.02;
 
+/** Vorlauf in Simulationssekunden: kurz vor dem Scheitel weich verlangsamen. */
+export const APEX_LEAD_SECONDS = 0.28;
+
 /**
- * Zeitfaktor abhängig von der Ballposition.
- * Anflug: ab Netz (z=0) 1.0× → kurz vor dem Schläger 0.1×.
- * Nach dem Kontakt: kurz fast Stillstand, dann weich zurück auf das normale Tempo.
+ * Live-Zeitfaktor nach dem ersten Aufsprung auf der Spielerseite.
+ * Vor dem Scheitel wird weich verlangsamt; nach dem Kontakt folgt die kurze Pause.
  */
-export function timeScaleFor(ballZ: number, hit: boolean, secondsSinceHit = Infinity): number {
-  const t = Math.min(1, Math.max(0, ballZ / (CONTACT_Z - 0.1)));
-  const normal = TIME_MAX + (TIME_MIN - TIME_MAX) * smooth(t);
-  if (!hit) return normal;
+export function timeScaleFor(
+  enabled: boolean,
+  bouncedNear: boolean,
+  verticalVelocity: number,
+  hit: boolean,
+  secondsSinceHit = Infinity,
+): number {
+  if (!enabled) return TIME_MAX;
+  if (!hit) {
+    if (!bouncedNear) return TIME_MAX;
+    if (verticalVelocity <= 0) return TIME_MIN;
+    const toApex = verticalVelocity / Math.abs(GRAVITY);
+    const t = 1 - Math.min(1, toApex / APEX_LEAD_SECONDS);
+    return TIME_MAX + (TIME_MIN - TIME_MAX) * smooth(t);
+  }
   if (secondsSinceHit < FREEZE_SECONDS) return FREEZE_SCALE;
   const k = Math.min(1, (secondsSinceHit - FREEZE_SECONDS) / RAMP_SECONDS);
-  return FREEZE_SCALE + (normal - FREEZE_SCALE) * smooth(k);
+  return FREEZE_SCALE + (TIME_MAX - FREEZE_SCALE) * smooth(k);
 }
