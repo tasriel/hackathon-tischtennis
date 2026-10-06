@@ -205,10 +205,13 @@ export function collideRacket(
   if (rubber && rubber.spinKeep < 1) b.spin.multiplyScalar(rubber.spinKeep);
   _r.copy(_n).multiplyScalar(-BALL_RADIUS);
   _vc.crossVectors(b.spin, _r).add(relT);
-  _dv.copy(_vc).multiplyScalar(-(rubber?.grip ?? RACKET_GRIP));
-
   // Rückprall tempoabhängig: sanfter Kontakt federt wenig, harter Schlag mehr
   const e = (rubber?.restitution ?? RACKET_RESTITUTION) * (0.6 + 0.4 * Math.min(1, -vn / 9));
+  // Hohlkugel: Haftkontakt bei 2/5 der Schlupfgeschwindigkeit. Nicht über diesen
+  // Punkt hinaus reiben: sonst kehrt der Schlupf künstlich um und Energie entsteht.
+  const slip = _vc.length();
+  const impulse = Math.min((rubber?.grip ?? RACKET_GRIP) * (1 + e) * -vn, 0.4 * slip);
+  _dv.copy(_vc).multiplyScalar(slip > 1e-6 ? -impulse / slip : 0);
   b.vel.copy(_rv).addScaledVector(_n, -vn * e).add(relT).add(_dv);
   _t.crossVectors(_r, _dv).multiplyScalar(3 / (2 * BALL_RADIUS * BALL_RADIUS));
   b.spin.add(_t);

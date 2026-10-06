@@ -15,8 +15,8 @@ export const TABLE_FRICTION = 0.18; // Coulomb-Reibwert Ball–Tisch
 
 // Schläger (glatter Belag)
 export const RACKET_RADIUS = 0.085; // Trefferzone der Blattfläche
-export const RACKET_RESTITUTION = 0.8;
-export const RACKET_GRIP = 0.55; // Reibung Belag–Ball (tangential), griffiger Belag
+export const RACKET_RESTITUTION = 0.58;
+export const RACKET_GRIP = 0.72; // Coulomb-Reibwert, Impuls bis zur Haftgrenze begrenzt
 export const ARM_REACH = 0.75; // max. Abstand Schulter → Schläger
 
 // Spieler steht hinter dem Tischende (z positiv), Blick Richtung -z
@@ -54,22 +54,23 @@ export type Rubber = {
   dir: [number, number, number];
   typ: { open: number; speed: number; dir: number };
   wantSpin: "TOPSPIN" | "BACKSPIN" | null;
+  flightTime: [number, number];
 };
 export const RUBBERS: Record<RubberType, Rubber> = {
   smooth: {
-    label: "Glatt", stroke: "Topspin", grip: 0.55, restitution: 0.8, spinKeep: 1, color: "#c0392b",
-    open: [-35, 20, 5], speed: [2.5, 5.5, 0.5], dir: [10, 70, 10], typ: { open: -20, speed: 4, dir: 30 }, wantSpin: "TOPSPIN",
+    label: "Glatt", stroke: "leichter Topspin / Konter", grip: 0.72, restitution: 0.58, spinKeep: 1, color: "#c0392b",
+    open: [-20, 40, 10], speed: [0.5, 3, 0.5], dir: [0, 60, 15], typ: { open: 0, speed: 1.5, dir: 25 }, wantSpin: "TOPSPIN", flightTime: [0.65, 1.05],
   },
   longPips: {
-    label: "lange Noppe", stroke: "Block (Spin-Umkehr)", grip: 0.08, restitution: 0.55, spinKeep: 0.9, color: "#1f2937",
-    open: [-10, 35, 5], speed: [0.3, 2.1, 0.3], dir: [-20, 10, 10], typ: { open: 5, speed: 0.9, dir: 0 }, wantSpin: null,
+    label: "lange Noppe", stroke: "weicher Block (Spin-Umkehr)", grip: 0.045, restitution: 0.3, spinKeep: 0.9, color: "#1f2937",
+    open: [0, 60, 10], speed: [0, 1.8, 0.3], dir: [-15, 30, 15], typ: { open: 25, speed: 0.6, dir: 10 }, wantSpin: null, flightTime: [0.8, 1.2],
   },
   shortPips: {
-    label: "kurze Noppe", stroke: "flacher Konter", grip: 0.3, restitution: 0.85, spinKeep: 0.6, color: "#2563eb",
-    open: [-20, 15, 5], speed: [2, 5.5, 0.5], dir: [-5, 20, 5], typ: { open: -5, speed: 3.5, dir: 5 }, wantSpin: null,
+    label: "kurze Noppe", stroke: "Schupf / weicher Konter", grip: 0.24, restitution: 0.34, spinKeep: 0.55, color: "#2563eb",
+    open: [-10, 60, 10], speed: [0, 2, 0.4], dir: [-30, 30, 15], typ: { open: 15, speed: 0.8, dir: 0 }, wantSpin: null, flightTime: [0.8, 1.15],
   },
   anti: {
-    label: "Anti", stroke: "passiver Block", grip: 0.03, restitution: 0.5, spinKeep: 0.35, color: "#a16207",
-    open: [-5, 50, 5], speed: [0.2, 2.6, 0.3], dir: [-15, 5, 10], typ: { open: 10, speed: 0.5, dir: 0 }, wantSpin: null,
+    label: "Anti", stroke: "gedämpfter Block", grip: 0.002, restitution: 0.16, spinKeep: 0.015, color: "#a16207",
+    open: [10, 70, 10], speed: [0, 1.6, 0.4], dir: [0, 30, 15], typ: { open: 35, speed: 0.3, dir: 10 }, wantSpin: null, flightTime: [0.95, 1.3],
   },
 };
