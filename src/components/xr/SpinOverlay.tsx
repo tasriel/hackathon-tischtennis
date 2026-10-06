@@ -81,8 +81,6 @@ export function makeSnapshot(): ContactSnapshot {
     kind: "backspin",
     label: "Schlag 1",
     heading: "",
-    strokeLabel: undefined,
-    tip: undefined,
   };
 }
 

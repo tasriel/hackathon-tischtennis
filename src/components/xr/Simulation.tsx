@@ -183,8 +183,8 @@ export function Simulation() {
     sh.ideal = defaultIdeal(kind);
     sh.label = `Schlag ${i + 1}/${settings.returns + 1}`;
     sh.heading = heading;
-    sh.strokeLabel = undefined;
-    sh.tip = undefined;
+    delete sh.strokeLabel;
+    delete sh.tip;
     snap.current = sh;
     recording.current = sh;
   };
