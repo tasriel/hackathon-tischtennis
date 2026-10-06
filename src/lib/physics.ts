@@ -228,6 +228,10 @@ export function collideRacket(
     const penetration = THREE.MathUtils.clamp(-vn / rubber.spinDamp, 0, 1);
     const keep = rubber.spinKeep * (1 - penetration);
     b.spin.copy(_spinIn).multiplyScalar(keep);
+    // Die Flugrichtung kehrt am Schläger um: x/z müssen deshalb ebenfalls drehen,
+    // damit z.B. Unterschnitt aus Spielersicht weiterhin Unterschnitt bleibt.
+    b.spin.x *= -1;
+    b.spin.z *= -1;
   }
 
   // Begrenzen, damit nichts explodiert
