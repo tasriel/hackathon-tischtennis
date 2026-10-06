@@ -515,7 +515,7 @@ export function SpinOverlay({
       const halfH = Math.tan(THREE.MathUtils.degToRad(pc.fov / 2)) * d;
       const halfW = halfH * pc.aspect;
       const h = halfH * 0.85;
-      const wPanel = Math.min(h * (4 / 3), halfW * 0.9);
+      const wPanel = Math.min(h * (4 / 3), halfW * (pc.aspect < 1 ? 0.62 : 0.9));
       const hPanel = wPanel * 0.5625;
       _v.set(-halfW + wPanel / 2 + halfH * 0.08, halfH - hPanel / 2 - halfH * 0.72, -d);
       p.position.copy(_v.applyQuaternion(pc.quaternion).add(pc.position));
