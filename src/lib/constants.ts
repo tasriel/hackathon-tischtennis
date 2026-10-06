@@ -71,6 +71,6 @@ export const RUBBERS: Record<RubberType, Rubber> = {
   },
   anti: {
     label: "Anti", stroke: "gedämpfter Block", grip: 0.002, restitution: 0.16, spinKeep: 0.015, color: "#a16207",
-    open: [10, 70, 10], speed: [0, 1.6, 0.4], dir: [0, 30, 15], typ: { open: 35, speed: 0.3, dir: 10 }, wantSpin: null, flightTime: [0.95, 1.3],
+    open: [10, 70, 10], speed: [0, 1.6, 0.4], dir: [0, 30, 15], typ: { open: 35, speed: 0.3, dir: 10 }, wantSpin: null, flightTime: [0.7, 1],
   },
 };
