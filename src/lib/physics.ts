@@ -235,7 +235,8 @@ export function collideRacket(
   }
 
   // Begrenzen, damit nichts explodiert
-  if (b.vel.length() > 10.5) b.vel.setLength(10.5);
+  const maxOutgoingSpeed = rubber ? 10.5 : Math.min(9, Math.max(6.5, lastContact.velBefore.length() + 2));
+  if (b.vel.length() > maxOutgoingSpeed) b.vel.setLength(maxOutgoingSpeed);
   if (b.spin.length() > 180) b.spin.setLength(180);
 
   lastContact.normal.copy(_n);
