@@ -12,8 +12,16 @@ const ACTIVE_EDGE = "#c4b5fd";
 const TEXT = "#f8fafc";
 const MUTED = "#aeb8cc";
 const GOLD = "#e6d36a";
-// Frontal sichtbar bei 90° Linksdrehung des Spielers (Blick Richtung -X)
-const PANEL_ROTATION: [number, number, number] = [0, Math.PI / 2, 0];
+// Fenster liegen wie bei der Quest 3 auf einem Kreisbogen um den Spieler, jedes zu ihm gedreht.
+const CENTER = { x: 0, z: 1.95 };
+const RADIUS = 1.35;
+/** Winkel in Grad: 0 = genau links vom Spieler, + = weiter nach hinten */
+function arc(deg: number, y: number): { position: [number, number, number]; rotation: [number, number, number] } {
+  const a = THREE.MathUtils.degToRad(deg);
+  const x = CENTER.x - RADIUS * Math.cos(a);
+  const z = CENTER.z + RADIUS * Math.sin(a);
+  return { position: [x, y, z], rotation: [0, Math.atan2(CENTER.x - x, CENTER.z - z), 0] };
+}
 
 function MenuButton({
   label,
@@ -52,10 +60,11 @@ function MenuButton({
   );
 }
 
-function Panel({ title, subtitle, position, size, children }: { title: string; subtitle: string; position: [number, number, number]; size: [number, number]; children: React.ReactNode }) {
+function Panel({ title, subtitle, angle, y, size, children }: { title: string; subtitle: string; angle: number; y: number; size: [number, number]; children: React.ReactNode }) {
   const [w, h] = size;
+  const { position, rotation } = arc(angle, y);
   return (
-    <group position={position} rotation={PANEL_ROTATION}>
+    <group position={position} rotation={rotation}>
       <mesh position={[0, 0, -0.012]}>
         <boxGeometry args={[w, h, 0.018]} />
         <meshStandardMaterial color={PANEL} transparent opacity={0.93} roughness={0.36} />
@@ -94,6 +103,8 @@ export function Menus() {
       if (spot) setSetting("target", spot);
       const rubber = { Digit5: "smooth", Digit6: "longPips", Digit7: "shortPips", Digit8: "anti" }[e.code] as RubberType | undefined;
       if (rubber) setSetting("rubber", rubber);
+      const ret = { Digit9: 1, Digit0: 2, Minus: 3 }[e.code] as 1 | 2 | 3 | undefined;
+      if (ret) setSetting("returns", ret);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -101,7 +112,21 @@ export function Menus() {
 
   return (
     <>
-      <Panel title="Belag Gegner" subtitle="5 / 6 / 7 / 8" position={[-1.2, 1.2, 3.2]} size={[0.54, 0.53]}>
+      <Panel title="Rückschläge" subtitle="9 / 0 / ß" angle={70} y={1.62} size={[0.54, 0.26]}>
+        {([1, 2, 3] as const).map((n, i) => (
+          <MenuButton
+            key={n}
+            label={String(n)}
+            active={s.returns === n}
+            position={[(i - 1) * 0.16, -0.035, 0]}
+            width={0.14}
+            height={0.08}
+            onSelect={() => setSetting("returns", n)}
+          />
+        ))}
+      </Panel>
+
+      <Panel title="Belag Gegner" subtitle="5 / 6 / 7 / 8" angle={70} y={1.15} size={[0.54, 0.53]}>
         {RUBBER_KEYS.map((k, i) => (
           <MenuButton
             key={k}
@@ -115,7 +140,7 @@ export function Menus() {
         ))}
       </Panel>
 
-      <Panel title="Schnitt-Variante" subtitle="1 / 2 / 3" position={[-1.2, 1.2, 2.55]} size={[0.54, 0.43]}>
+      <Panel title="Schnitt-Variante" subtitle="1 / 2 / 3" angle={40} y={1.2} size={[0.54, 0.43]}>
         {SERVES.map((k, i) => (
           <MenuButton
             key={k}
@@ -129,7 +154,7 @@ export function Menus() {
         ))}
       </Panel>
 
-      <Panel title="Target" subtitle="J / K / L" position={[-1.2, 1.2, 1.85]} size={[0.74, 0.3]}>
+      <Panel title="Target" subtitle="J / K / L" angle={10} y={1.2} size={[0.74, 0.3]}>
         {SPOTS.map((sp, i) => (
           <MenuButton
             key={sp.key}
