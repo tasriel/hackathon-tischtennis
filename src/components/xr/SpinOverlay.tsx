@@ -47,6 +47,12 @@ export type ContactSnapshot = {
   scale: number;
   ideal: IdealShot;
   explain: string;
+  /** erwarteter Schlag (Variante des ankommenden Balls) */
+  kind: ServeType;
+  /** z.B. "Schlag 2/2" */
+  label: string;
+  /** Überschrift der Live-Ansicht */
+  heading: string;
 };
 
 export function makeSnapshot(): ContactSnapshot {
@@ -69,6 +75,9 @@ export function makeSnapshot(): ContactSnapshot {
     scale: 1,
     ideal: DEFAULT_IDEAL,
     explain: "",
+    kind: "backspin",
+    label: "Schlag 1",
+    heading: "",
   };
 }
 
@@ -422,7 +431,7 @@ export function SpinOverlay({
         open = THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(toFar.y, -1, 1)));
       }
       const dir = replay ? s.dirDeg : THREE.MathUtils.radToDeg(Math.atan2(vel.y, Math.max(-vel.z, 1e-3)));
-      const spec = STROKES[settings.serve];
+      const spec = STROKES[s.kind];
       const deg = (d: number) => `${Math.abs(Math.round(d))}° ${d >= 0 ? "offen" : "geschl."}`;
       const sg = (d: number) => `${d >= 0 ? "+" : ""}${Math.round(d)}°`;
       const angleC = grade(Math.abs(open - ideal.openDeg), 8, 18);
@@ -439,8 +448,10 @@ export function SpinOverlay({
       const vd = replay ? verdict(rows.map((r) => r.c)) : { text: "", color: OK };
       const [tip1, tip2] = replay ? twoLines(advice(s)) : twoLines([spec.tip], 34);
       const next: Texts = {
-        title: replay ? (paused ? "Balltreffpunkt" : `Replay: ${spec.stroke}`) : `${spec.serveLabel} → ${spec.stroke}`,
-        state: replay ? (paused ? "Treffpunkt hält 1 s" : "Schleife bis zum nächsten Ball") : "Live",
+        title: replay ? (paused ? `${s.label} · Balltreffpunkt` : `Replay ${s.label}: ${spec.stroke}`) : s.heading || `${spec.serveLabel} → ${spec.stroke}`,
+        state: replay
+          ? `${paused ? "Treffpunkt hält 1 s" : "Schleife bis zum nächsten Ball"}${settings.reviewCount > 1 ? " · ◀ ▶ wechseln" : ""}`
+          : `Live · ${s.label}`,
         rows,
         verdict: vd.text,
         verdictC: vd.color,
