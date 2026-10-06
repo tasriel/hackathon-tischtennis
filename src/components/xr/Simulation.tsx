@@ -508,7 +508,7 @@ export function Simulation() {
       <group ref={oppGroup} position={oppRest.pos}>
         <RacketModel />
         {/* Platzhalter-Belagfarbe bis zu den echten Texturen */}
-        <mesh position={[0.006, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <mesh position={[0.014, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
           <circleGeometry args={[0.078, 32]} />
           <meshStandardMaterial ref={oppFace} color={RUBBERS.smooth.color} roughness={0.7} />
         </mesh>
