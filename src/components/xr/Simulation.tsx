@@ -497,7 +497,7 @@ export function Simulation() {
           if (++s.opponentBounces > 1) finish("success");
         }
         else if (s.plan && s.oppClock >= s.plan.steps * PHYS_DT - 1e-6) opponentHit();
-        else if (ev && ev !== "table-far") finish("success");
+        else if (ev) finish("success");
       } else if (!s.done) {
         if (ev === "net") finish("net");
         else if (ev === "table-far") {
