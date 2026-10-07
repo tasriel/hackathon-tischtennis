@@ -16,3 +16,4 @@
 - Draw the opaque review frame and image last in the transparent render queue without depth testing, so transparent nets and scene labels cannot cover the XR review panel.
 - Model opponent rubbers as physics constants (grip, restitution, spin retention) in constants.ts and keep the opponent racket a SceneModel visual, so rubber behaviour and textures stay independently swappable.
 - Trigger live slow motion from the first near-side bounce and predicted apex, while keeping replay timing and color independent.
+- Keep onboarding contextual and session-local: teach the right trigger at ball spawn, slow motion at activation, and review after repeated invalid returns.

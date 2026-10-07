@@ -27,3 +27,4 @@
 - [x] Anpassungen #3: Live-Zeitlupe schaltbar und scheitelpunktgesteuert, Topspin-Tempo begrenzen, Gegner früh antizipieren lassen, kurze-Noppe-Schupf im Review.
 - [ ] Echte Belag-Texturen für den Gegnerschläger (folgen vom Team).
 - [x] Anpassungen #4 (Rückschläge 0, Echtzeit-Tempo, Zeitlupe am Plattenende, Seitschnitt-Anzeige, Konter bei kurzem Ball)
+- [x] Situatives Intro: rechter-Trigger-Hinweis, kurze Zeitlupenerklärung, Review-Hinweis nach drei nicht regelkonformen Rückschlägen sowie Physik-Regressionstests.
