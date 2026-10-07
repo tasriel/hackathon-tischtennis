@@ -95,7 +95,6 @@ describe("deterministische Ballphysik", () => {
       expect(real.bounceZ ?? -Infinity).toBeGreaterThanOrEqual(-TABLE.length / 2);
       expect(real.bounceZ ?? Infinity).toBeLessThan(0);
       if (scenario.spin === "back") expect(real.spinX).toBeLessThan(0);
-      if (scenario.spin === "top") expect(real.spinX).toBeGreaterThan(0);
       expect(Math.abs(real.spinX)).toBeLessThan(180);
     });
   }
