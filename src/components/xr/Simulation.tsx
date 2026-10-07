@@ -2,7 +2,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useXR, useXRInputSourceState } from "@react-three/xr";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { ARM_REACH, CONTACT_Z, RUBBERS, TABLE, type ServeType } from "@/lib/constants";
+import { ARM_REACH, CONTACT_Z, RUBBERS, SERVES, TABLE, type ServeType } from "@/lib/constants";
 import { applyOpponentHit, planOpponentFromFlight, type OpponentPlan } from "@/lib/opponent";
 import {
   collideRacket,
@@ -651,18 +651,20 @@ export function Simulation() {
         </group>
         <BallSpinLabel ball={ball} />
         <Label
-          text={serveHint ? (isXR ? "Rechter Trigger: Ball einspielen" : "Leertaste: Ball einspielen") : ""}
-          color="#f8fafc"
-          bg="rgba(5,9,20,0.92)"
-          height={0.055}
-          position={[0, 0.2, 0]}
-        />
-        <Label
           text={slowHint ? "Ball in Zeitlupe – du schlägst normal schnell" : ""}
           color="#fde68a"
           bg="rgba(5,9,20,0.92)"
           height={0.048}
           position={[0, 0.18, 0]}
+        />
+      </group>
+      <group position={SERVES[settings.serve].pos}>
+        <Label
+          text={serveHint ? (isXR ? "Rechter Trigger: Ball einspielen" : "Leertaste: Ball einspielen") : ""}
+          color="#f8fafc"
+          bg="rgba(5,9,20,0.92)"
+          height={0.055}
+          position={[0, 0.2, 0]}
         />
       </group>
       <primitive object={previewMesh} />

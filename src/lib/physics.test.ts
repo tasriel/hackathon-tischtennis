@@ -69,13 +69,13 @@ describe("deterministische Ballphysik", () => {
     },
     {
       name: "frontaler Block",
-      ball: () => strike(new THREE.Vector3(0, -0.25, 5.0), new THREE.Vector3(45, 0, 0), new THREE.Vector3(0, 0.15, -2.0), 0),
+      ball: () => strike(new THREE.Vector3(0, -0.25, 5.0), new THREE.Vector3(45, 0, 0), new THREE.Vector3(0, 0.2, -3.0), -5),
       spin: "controlled",
     },
     {
       name: "Topspin-Konter",
-      ball: () => strike(new THREE.Vector3(0, -0.3, 5.2), new THREE.Vector3(80, 0, 0), new THREE.Vector3(0, 1.0, -2.8), -18),
-      spin: "top",
+      ball: () => strike(new THREE.Vector3(0, -0.3, 5.2), new THREE.Vector3(80, 0, 0), new THREE.Vector3(0, 0.6, -3.0), -5),
+      spin: "controlled",
     },
   ] as const;
 

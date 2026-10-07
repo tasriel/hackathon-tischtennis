@@ -315,6 +315,7 @@ export function SpinOverlay({
   const panel = useRef<THREE.Mesh>(null);
   const arrowL = useRef<THREE.Mesh>(null);
   const arrowR = useRef<THREE.Mesh>(null);
+  const attentionArrow = useRef<THREE.Mesh>(null);
   const frame = useRef<THREE.Mesh>(null);
   const [texts, setTexts] = useState<Texts>({ title: "", state: "", rows: [], verdict: "", verdictC: OK, tip1: "", tip2: "" });
   const tick = useRef(0);
@@ -542,6 +543,13 @@ export function SpinOverlay({
       const fm = f.material as THREE.MeshBasicMaterial;
       fm.color.set(attention ? USER : snap.current.ready ? VIOLET : "#111827");
     }
+    const aa = attentionArrow.current;
+    if (aa) {
+      aa.visible = attention;
+      aa.quaternion.copy(p.quaternion);
+      aa.position.copy(_v.set(-(p.scale.x / 2 + p.scale.y * 0.18), 0, 0.002).applyQuaternion(p.quaternion).add(p.position));
+      aa.scale.setScalar(p.scale.y * (0.12 + Math.sin(now * 0.014) * 0.025));
+    }
     // Pfeile zum Wechseln zwischen den Schlagaufnahmen
     const many = settings.reviewCount > 1;
     [arrowL.current, arrowR.current].forEach((a, i) => {
@@ -606,6 +614,10 @@ export function SpinOverlay({
         <planeGeometry args={[1, 1]} />
         {/* Volle Deckkraft, aber in der transparenten Render-Gruppe nach dem Netz zeichnen. */}
         <meshBasicMaterial color="#111827" transparent opacity={1} depthTest={false} depthWrite={false} />
+      </mesh>
+      <mesh ref={attentionArrow} renderOrder={1001} visible={false} rotation={[0, 0, -Math.PI / 2]} onUpdate={(m) => m.layers.set(PANEL_LAYER)}>
+        <circleGeometry args={[1, 3]} />
+        <meshBasicMaterial color={USER} transparent opacity={1} depthTest={false} depthWrite={false} />
       </mesh>
       <mesh ref={panel} renderOrder={1000} onUpdate={(m) => m.layers.set(PANEL_LAYER)}>
         <planeGeometry args={[1, 1]} />
