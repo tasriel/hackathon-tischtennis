@@ -7,7 +7,7 @@ Der vorgeschlagene VR-Testmodus mit gespeicherten Testläufen wird vorerst **nic
 ## 1. Startansicht und Einspielen
 
 - Den kaum lesbaren schwarzen/grauen Erklärungstext am oberen Bildschirmrand entfernen; die Überschrift ebenfalls ausblenden, damit die Halle frei bleibt.
-- Beim ersten Öffnen keinen Ball automatisch losschicken. Stattdessen erscheint am normalen Ballstart ein gut lesbarer, kurzer Hinweis: **„Trigger: Ball einspielen“**; am Rechner wird ergänzend die Leertaste genannt.
+- Beim ersten Öffnen keinen Ball automatisch losschicken. Stattdessen erscheint am normalen Ballstart ein gut lesbarer, kurzer Hinweis: **„Rechter Trigger: Ball einspielen“**; am Rechner wird ergänzend **„Leertaste“** genannt.
 - Beim ersten Trigger-/Leertastendruck startet der Ball und der Hinweis verschwindet sofort.
 - Nach Ende eines Ballwechsels startet ein 7-Sekunden-Timer. Wird bis dahin kein neuer Ball angefordert, erscheint derselbe Hinweis erneut direkt am Ballstart. Beim nächsten Start verschwindet er wieder.
 - Einstellungsänderungen starten weiterhin keinen Ball.
@@ -22,10 +22,10 @@ Der vorgeschlagene VR-Testmodus mit gespeicherten Testläufen wird vorerst **nic
 
 ## 3. Dezenter Hinweis auf das Review
 
-- Pro vollständigem Ballwechsel erfassen, ob überhaupt ein Schlägerkontakt stattgefunden hat.
-- Nach drei Ballwechseln in Folge ohne Kontakt wird das vorhandene Review-Fenster für wenige Sekunden dezent hervorgehoben: stärkerer Rahmenpuls plus kleiner Richtungspfeil an seiner tatsächlichen VR-Position.
+- Jeden Spielerschlag danach bewerten, ob der Ball die gegnerische Plattenhälfte regelkonform getroffen hat. Verfehlen, Netz, eigene Plattenhälfte und Aus zählen als nicht regelkonform; ein korrekter Aufsprung auf der Gegenseite setzt die Serie zurück.
+- Nach drei nicht regelkonformen Spielerschlägen in Folge wird das vorhandene Review-Fenster für wenige Sekunden dezent hervorgehoben: stärkerer Rahmenpuls plus kleiner Richtungspfeil an seiner tatsächlichen VR-Position.
 - Kein großer Text in der Mitte und keine dauerhafte Animation.
-- Ein Ballkontakt setzt die Fehlschlagserie zurück. Derselbe Hinweis wird erst nach einer neuen Serie von drei komplett verfehlten Bällen erneut ausgelöst.
+- Ein bloßer Schlägerkontakt setzt die Serie nicht zurück. Derselbe Hinweis wird erst nach einer neuen Serie von drei nicht regelkonformen Rückschlägen erneut ausgelöst.
 - Die vorhandene blickdichte Darstellung und Vordergrund-Reihenfolge des Review-Fensters bleiben erhalten.
 
 ## 4. Automatisierte Physik-Regressionstests
@@ -48,6 +48,6 @@ Der vorgeschlagene VR-Testmodus mit gespeicherten Testläufen wird vorerst **nic
 ## Prüfung
 
 - Automatisierte Physiktests ausführen und Typprüfung bestehen lassen.
-- Im Browser prüfen: kein alter Kopftext, initial kein automatischer Ball, Trigger-/Leertastenhinweis, erneuter Hinweis nach 7 Sekunden, Zeitlupenhinweis nur bis zum ersten Kontakt bzw. maximal drei Versuche, Review-Hinweis erst nach drei vollständigen Verfehlungen.
+- Im Browser prüfen: kein alter Kopftext, initial kein automatischer Ball, Hinweis auf rechten Trigger/Leertaste, erneuter Hinweis nach 7 Sekunden, Zeitlupenhinweis nur bis zum ersten Kontakt bzw. maximal drei Versuche, Review-Hinweis erst nach drei nicht regelkonformen Rückschlägen.
 - Zusätzlich schmale und breite Ansicht auf Überlagerungen prüfen.
 - Der abschließende Meta-Quest-3-Test bleibt als manueller Prüfschritt offen.
