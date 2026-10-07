@@ -250,6 +250,7 @@ export function SpinOverlay({
   snap,
   ballObj,
   racketObj,
+  attention = false,
 }: {
   ball: BallState;
   racket: RacketState;
@@ -257,6 +258,7 @@ export function SpinOverlay({
   getScale?: () => number;
   ballObj?: React.RefObject<THREE.Object3D | null>;
   racketObj?: React.RefObject<THREE.Object3D | null>;
+  attention?: boolean;
 }) {
   const { gl, scene, camera } = useThree();
   const isXR = useXR((s) => s.session != null);
@@ -531,10 +533,14 @@ export function SpinOverlay({
     if (f) {
       f.position.copy(p.position);
       f.quaternion.copy(p.quaternion);
-      const pulse = snap.current.ready ? 1 + Math.sin(performance.now() * 0.006) * 0.025 : 1;
+      const pulse = attention
+        ? 1 + Math.sin(performance.now() * 0.014) * 0.065
+        : snap.current.ready
+          ? 1 + Math.sin(performance.now() * 0.006) * 0.025
+          : 1;
       f.scale.set(p.scale.x * 1.035 * pulse, p.scale.y * 1.055 * pulse, 1);
       const fm = f.material as THREE.MeshBasicMaterial;
-      fm.color.set(snap.current.ready ? VIOLET : "#111827");
+      fm.color.set(attention ? USER : snap.current.ready ? VIOLET : "#111827");
     }
     // Pfeile zum Wechseln zwischen den Schlagaufnahmen
     const many = settings.reviewCount > 1;

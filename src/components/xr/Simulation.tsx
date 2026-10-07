@@ -163,6 +163,7 @@ export function Simulation() {
 
   const restart = (launch = true) => {
     resetServe(ball, settings.serve);
+    if (ballGroup.current) ballGroup.current.position.copy(ball.pos);
     s0.clipPending = false;
     for (const sh of shots) {
       sh.active = false;
@@ -224,6 +225,7 @@ export function Simulation() {
     s.bouncedNear = false;
     s.nearBounceZ = Infinity;
     s.opponentBounces = 0;
+    s.currentShotLegal = false;
     s.flashTarget = "none";
     s.metrics = null;
     const side = isSideDominant(ball.spin);
@@ -488,7 +490,12 @@ export function Simulation() {
         } else if (!s.done && (ball.pos.z > CONTACT_Z + 0.6 || ev === "floor")) finish("miss");
       } else if (!s.done && s.phase === "opp") {
         s.oppClock += PHYS_DT;
-        if (ev === "table-far" && ++s.opponentBounces > 1) finish("success");
+        if (ev === "table-far") {
+          s.currentShotLegal = true;
+          s.invalidReturnStreak = 0;
+          setReviewHint(false);
+          if (++s.opponentBounces > 1) finish("success");
+        }
         else if (s.plan && s.oppClock >= s.plan.steps * PHYS_DT - 1e-6) opponentHit();
         else if (ev && ev !== "table-far") finish("success");
       } else if (!s.done) {
