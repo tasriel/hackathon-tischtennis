@@ -1,6 +1,6 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useXR, useXRInputSourceState } from "@react-three/xr";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { ARM_REACH, CONTACT_Z, RUBBERS, TABLE, type ServeType } from "@/lib/constants";
 import { applyOpponentHit, planOpponentFromFlight, type OpponentPlan } from "@/lib/opponent";
@@ -29,7 +29,6 @@ import { SpinOverlay, makeSnapshot, CLIP_BEFORE, CLIP_AFTER, type ContactSnapsho
 import { Target, type TargetImpact } from "./Target";
 import { GymRoom } from "./GymRoom";
 import { Label } from "./Label";
-import { useState } from "react";
 
 const SPIN_DE: Record<string, { t: string; c: string }> = {
   BACKSPIN: { t: "Unterschnitt", c: "#70a5ff" },
@@ -118,7 +117,17 @@ export function Simulation() {
     nearBounceZ: Infinity,
     /** Aufsprünge auf der Gegnerseite seit dem Spielerkontakt. */
     opponentBounces: 0,
+    /** wartet auf rechten Trigger / Leertaste statt automatisch einzuspielen */
+    waitingForServe: true,
+    idleSince: performance.now(),
+    slowHintAttempts: 0,
+    slowHintDone: false,
+    currentShotLegal: false,
+    invalidReturnStreak: 0,
   });
+  const [serveHint, setServeHint] = useState(true);
+  const [slowHint, setSlowHint] = useState(false);
+  const [reviewHint, setReviewHint] = useState(false);
 
   const ballGroup = useRef<THREE.Group>(null);
   const racketGroup = useRef<THREE.Group>(null);
@@ -152,7 +161,7 @@ export function Simulation() {
   }, []);
   const previewAlpha = useRef(0);
 
-  const restart = () => {
+  const restart = (launch = true) => {
     resetServe(ball, settings.serve);
     s0.clipPending = false;
     for (const sh of shots) {
@@ -178,6 +187,12 @@ export function Simulation() {
     s.bouncedNear = false;
     s.nearBounceZ = Infinity;
     s.opponentBounces = 0;
+    s.waitingForServe = !launch;
+    s.idleSince = performance.now();
+    s.currentShotLegal = false;
+    if (!launch) ball.vel.set(0, 0, 0);
+    setServeHint(!launch);
+    setSlowHint(false);
   };
 
   const prepareShot = (i: number, kind: ServeType, heading: string) => {
@@ -227,7 +242,7 @@ export function Simulation() {
   };
 
   useEffect(() => {
-    restart();
+    restart(false);
     const onKey = (e: KeyboardEvent) => {
       if (e.code === "Space") restart();
       if (e.code === "KeyW") sim.current.desktopTilt += 0.08;
@@ -266,6 +281,16 @@ export function Simulation() {
       result,
     };
     m.result = result;
+    if (!s.currentShotLegal) {
+      s.invalidReturnStreak++;
+      if (s.invalidReturnStreak >= 3) {
+        s.invalidReturnStreak = 0;
+        setReviewHint(true);
+        window.setTimeout(() => setReviewHint(false), 4500);
+      }
+    }
+    if (!s.hit && !s.slowHintDone && s.slowHintAttempts < 3) s.slowHintAttempts++;
+    s.idleSince = performance.now();
   };
 
   const _prevPos = useMemo(() => new THREE.Vector3(), []);
@@ -301,6 +326,9 @@ export function Simulation() {
   useFrame((_, rawDelta) => {
     const dt = Math.min(rawDelta, 0.05);
     const s = sim.current;
+
+    const shouldShowServeHint = s.waitingForServe || (s.done && performance.now() - s.idleSince >= 7000);
+    if (shouldShowServeHint !== serveHint) setServeHint(shouldShowServeHint);
 
     // ---------- Schlägerpose ----------
     _lastRacket.copy(racket.pos);
@@ -368,6 +396,9 @@ export function Simulation() {
     s.scale = scale;
     racket.timeScale = scale;
     stepR.timeScale = scale;
+    const shouldShowSlowHint = !s.waitingForServe && !s.done && !s.hit && settings.slowMotion && scale < 0.85 && !s.slowHintDone && s.slowHintAttempts < 3;
+    if (shouldShowSlowHint !== slowHint) setSlowHint(shouldShowSlowHint);
+    if (s.waitingForServe) return;
     s.acc += dt * scale;
     const planned = Math.min(40, Math.floor(s.acc / PHYS_DT));
     let steps = 0;
@@ -393,6 +424,8 @@ export function Simulation() {
         if (hitNow) {
           _prevPos.copy(ball.pos);
           s.hit = true;
+          s.slowHintDone = true;
+          setSlowHint(false);
           s.hitAt = performance.now();
           const toFar = _tmp.copy(racket.normal);
           if (toFar.z > 0) toFar.negate();
@@ -461,6 +494,9 @@ export function Simulation() {
       } else if (!s.done) {
         if (ev === "net") finish("net");
         else if (ev === "table-far") {
+          s.currentShotLegal = true;
+          s.invalidReturnStreak = 0;
+          setReviewHint(false);
           targetImpact.current.x = ball.pos.x;
           targetImpact.current.z = ball.pos.z;
           targetImpact.current.sequence++;
@@ -607,6 +643,20 @@ export function Simulation() {
           <BallModel getTimeScale={() => sim.current.scale} />
         </group>
         <BallSpinLabel ball={ball} />
+        <Label
+          text={serveHint ? (isXR ? "Rechter Trigger: Ball einspielen" : "Leertaste: Ball einspielen") : ""}
+          color="#f8fafc"
+          bg="rgba(5,9,20,0.92)"
+          height={0.055}
+          position={[0, 0.2, 0]}
+        />
+        <Label
+          text={slowHint ? "Ball in Zeitlupe – du schlägst normal schnell" : ""}
+          color="#fde68a"
+          bg="rgba(5,9,20,0.92)"
+          height={0.048}
+          position={[0, 0.18, 0]}
+        />
       </group>
       <primitive object={previewMesh} />
       <Target impact={targetImpact} />
@@ -619,7 +669,7 @@ export function Simulation() {
         </mesh>
       </group>
       <Menus />
-      <SpinOverlay ball={ball} racket={racket} snap={snap} ballObj={ballGroup} racketObj={racketGroup} getScale={() => sim.current.scale} />
+      <SpinOverlay ball={ball} racket={racket} snap={snap} ballObj={ballGroup} racketObj={racketGroup} getScale={() => sim.current.scale} attention={reviewHint} />
     </>
   );
 }
