@@ -99,3 +99,26 @@ describe("deterministische Ballphysik", () => {
     });
   }
 });
+import { SERVES } from "./constants";
+import { spongeRestitution } from "./physics";
+import { timeScaleFor } from "./timescale";
+
+describe("Anpassungen #5", () => {
+  test("Schwamm: aktiver Schub katapultiert stärker als passives Hinhalten", () => {
+    expect(spongeRestitution(4, 3)).toBeGreaterThan(spongeRestitution(4, 0) + 0.1);
+  });
+
+  test("Zeitlupe ohne Standbild: nach dem Treffer nie langsamer als die eingestellte Stärke", () => {
+    for (let t = 0; t < 2; t += 0.05) {
+      expect(timeScaleFor(true, true, 0, true, t, 0, 0, { min: 0.3, duration: "medium" })).toBeGreaterThanOrEqual(0.3 - 1e-9);
+    }
+  });
+
+  test("Dauer „Sofort“: kurz nach dem Schlag wieder Normaltempo", () => {
+    expect(timeScaleFor(true, true, 0, true, 0.15, 0, 0, { min: 0.1, duration: "instant" })).toBeCloseTo(1, 5);
+  });
+
+  test("Einspielbälle kommen höchstens mit 4,5 m/s Vorwärtstempo", () => {
+    for (const s of Object.values(SERVES)) expect(s.vel[2]).toBeLessThanOrEqual(4.5);
+  });
+});

@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import * as THREE from "three";
 import { RUBBERS, type RubberType, type ServeType } from "@/lib/constants";
-import { setSetting, settings, useSettings, type TargetSpot } from "@/lib/settings";
+import { setSetting, settings, SLOW_STRENGTHS, TABLE_OFFSETS, useSettings, type TargetSpot } from "@/lib/settings";
+import { SLOW_DURATIONS, type SlowDuration } from "@/lib/timescale";
 import { STROKES } from "@/lib/strokes";
 import { Label } from "./Label";
 
@@ -84,6 +85,7 @@ function Panel({ title, subtitle, angle, y, size, children }: { title: string; s
   );
 }
 
+const DURATIONS: SlowDuration[] = ["instant", "short", "medium", "long"];
 const SERVES: ServeType[] = ["backspin", "topspin", "sidespin"];
 const RUBBER_KEYS: RubberType[] = ["smooth", "longPips", "shortPips", "anti"];
 const SPOTS: { key: TargetSpot; label: string }[] = [
@@ -113,9 +115,33 @@ export function Menus() {
 
   return (
     <>
-      <Panel title="Slow-Motion" subtitle="M" angle={100} y={1.4} size={[0.54, 0.26]}>
-        <MenuButton label="An" active={s.slowMotion} position={[-0.12, -0.035, 0]} width={0.2} height={0.08} onSelect={() => setSetting("slowMotion", true)} />
-        <MenuButton label="Aus" active={!s.slowMotion} position={[0.12, -0.035, 0]} width={0.2} height={0.08} onSelect={() => setSetting("slowMotion", false)} />
+      <Panel title="Slow-Motion" subtitle="M" angle={100} y={1.25} size={[0.6, 0.78]}>
+        <MenuButton label="An" active={s.slowMotion} position={[-0.13, 0.17, 0]} width={0.22} height={0.07} onSelect={() => setSetting("slowMotion", true)} />
+        <MenuButton label="Aus" active={!s.slowMotion} position={[0.13, 0.17, 0]} width={0.22} height={0.07} onSelect={() => setSetting("slowMotion", false)} />
+        <Label text="Stärke" position={[0, 0.095, 0.012]} height={0.022} flat color={MUTED} bg="rgba(0,0,0,0)" />
+        {SLOW_STRENGTHS.map((v, i) => (
+          <MenuButton key={v} label={`${String(v).replace(".", ",")}×`} active={s.slowStrength === v} position={[(i - 1.5) * 0.132, 0.04, 0]} width={0.12} height={0.065} onSelect={() => setSetting("slowStrength", v)} />
+        ))}
+        <Label text="Dauer nach Schlag" position={[0, -0.03, 0.012]} height={0.022} flat color={MUTED} bg="rgba(0,0,0,0)" />
+        {DURATIONS.map((d, i) => (
+          <MenuButton key={d} label={SLOW_DURATIONS[d].label} active={s.slowDuration === d} position={[(i - 1.5) * 0.132, -0.085, 0]} width={0.12} height={0.065} onSelect={() => setSetting("slowDuration", d)} />
+        ))}
+        <Label text="Rotation in Echtzeit" position={[0, -0.155, 0.012]} height={0.022} flat color={MUTED} bg="rgba(0,0,0,0)" />
+        <MenuButton label="An" active={s.realtimeSpin} position={[-0.13, -0.21, 0]} width={0.22} height={0.065} onSelect={() => setSetting("realtimeSpin", true)} />
+        <MenuButton label="Aus" active={!s.realtimeSpin} position={[0.13, -0.21, 0]} width={0.22} height={0.065} onSelect={() => setSetting("realtimeSpin", false)} />
+      </Panel>
+
+      <Panel title="Anzeige" subtitle="Ball-Infos und Tischhöhe" angle={130} y={1.25} size={[0.6, 0.62]}>
+        <Label text="Schnitt-Text" position={[-0.15, 0.13, 0.012]} height={0.022} flat color={MUTED} bg="rgba(0,0,0,0)" />
+        <MenuButton label="An" active={s.showSpinText} position={[0.07, 0.13, 0]} width={0.1} height={0.065} onSelect={() => setSetting("showSpinText", true)} />
+        <MenuButton label="Aus" active={!s.showSpinText} position={[0.19, 0.13, 0]} width={0.1} height={0.065} onSelect={() => setSetting("showSpinText", false)} />
+        <Label text="Tempo" position={[-0.15, 0.045, 0.012]} height={0.022} flat color={MUTED} bg="rgba(0,0,0,0)" />
+        <MenuButton label="An" active={s.showSpeed} position={[0.07, 0.045, 0]} width={0.1} height={0.065} onSelect={() => setSetting("showSpeed", true)} />
+        <MenuButton label="Aus" active={!s.showSpeed} position={[0.19, 0.045, 0]} width={0.1} height={0.065} onSelect={() => setSetting("showSpeed", false)} />
+        <Label text="Tischhöhe" position={[0, -0.04, 0.012]} height={0.022} flat color={MUTED} bg="rgba(0,0,0,0)" />
+        {TABLE_OFFSETS.map((v, i) => (
+          <MenuButton key={v} label={v === 0 ? "0" : `${v > 0 ? "+" : "−"}${Math.round(Math.abs(v) * 100)} cm`} active={s.tableOffset === v} position={[(i - 1.5) * 0.132, -0.1, 0]} width={0.12} height={0.065} onSelect={() => setSetting("tableOffset", v)} />
+        ))}
       </Panel>
 
       <Panel title="Rückschläge" subtitle="9 / 0 / ß / ´" angle={70} y={1.62} size={[0.54, 0.26]}>

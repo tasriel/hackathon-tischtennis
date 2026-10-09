@@ -28,9 +28,9 @@ export const CONTACT_Z = 1.55; // erwartete Treffzone
 export type ServeType = "backspin" | "topspin" | "sidespin";
 type Serve = { pos: readonly [number, number, number]; vel: readonly [number, number, number]; spin: readonly [number, number, number] };
 export const SERVES: Record<ServeType, Serve> = {
-  backspin: { pos: [0.25, TABLE.height + 0.3, -1.5], vel: [0.0, 1.5, 5.0], spin: [-150, 0, 0] },
-  topspin: { pos: [0.25, TABLE.height + 0.3, -1.5], vel: [0.0, 2.2, 5.2], spin: [130, 0, 0] },
-  sidespin: { pos: [0.1, TABLE.height + 0.3, -1.5], vel: [0.1, 2.2, 5.0], spin: [60, 120, 0] },
+  backspin: { pos: [0.25, TABLE.height + 0.3, -1.5], vel: [0.0, 2.1, 4.25], spin: [-150, 0, 0] },
+  topspin: { pos: [0.25, TABLE.height + 0.3, -1.5], vel: [0.0, 2.8, 4.4], spin: [130, 0, 0] },
+  sidespin: { pos: [0.1, TABLE.height + 0.3, -1.5], vel: [0.085, 2.8, 4.25], spin: [60, 120, 0] },
 };
 export const SERVE = SERVES.backspin;
 
@@ -72,6 +72,8 @@ export type Rubber = {
 export const OPPONENT_TARGET_X = 0.38;
 /** gewünschte Höhe über der Netzkante (m) – eher etwas höher als flach */
 export const OPPONENT_NET_GAP = 0.17;
+/** gewünschtes Höchsttempo des Lehrballs (m/s, ≈ 18 km/h) */
+export const OPPONENT_MAX_SPEED = 5;
 export const RUBBERS: Record<RubberType, Rubber> = {
   smooth: {
     label: "Glatt", grip: 0.75, restitution: 0.45, spinKeep: 1, color: "#c0392b", targetZ: 0.95,

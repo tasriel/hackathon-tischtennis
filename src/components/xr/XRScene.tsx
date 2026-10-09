@@ -2,11 +2,13 @@ import { Canvas } from "@react-three/fiber";
 import { XR, XROrigin, createXRStore } from "@react-three/xr";
 import { useState } from "react";
 import { PLAYER_Z, TABLE } from "@/lib/constants";
+import { useSettings } from "@/lib/settings";
 import { Simulation } from "./Simulation";
 
 // Zentrale Szenendatei (gemeinsam genutzt – Änderungen absprechen)
 export function XRScene() {
   const [store] = useState(() => createXRStore({ hand: false }));
+  const { tableOffset } = useSettings();
   return (
     <div className="fixed inset-0 bg-background">
       <Canvas
@@ -19,7 +21,8 @@ export function XRScene() {
         <hemisphereLight args={["#fff5e5", "#75987a", 1.3]} />
         <directionalLight position={[2.5, 5, 2.5]} intensity={1.35} color="#fff5e5" />
         <XR store={store}>
-          <XROrigin position={[0, 0, PLAYER_Z]} />
+          {/* Spieler tiefer setzen = Tisch wirkt höher; Physik bleibt unverändert */}
+          <XROrigin position={[0, -tableOffset, PLAYER_Z]} />
           <Simulation />
         </XR>
       </Canvas>
