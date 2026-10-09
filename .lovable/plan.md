@@ -3,7 +3,7 @@
 ## 1. Zeitlupe stufenlos einstellen
 - Das Fenster „Slow-Motion“ bekommt zusätzlich zu An/Aus zwei Regler mit je 3–4 Stufen:
   - **Stärke:** wie langsam der Ball wird (z. B. 0,5× / 0,3× / 0,15× / 0,1×).
-  - **Dauer:** wie lange die Zeitlupe nach dem Treffer anhält, bevor sie wieder auf Normaltempo geht (kurz / mittel / lang).
+  - **Dauer:** wie lange die Zeitlupe nach dem Treffer anhält, bevor sie wieder auf Normaltempo geht (sofort / kurz / mittel / lang). Bei „sofort“ läuft der Ball direkt nach deinem Schlag wieder in normalem Tempo.
 - Kein abruptes Anhalten mehr: Das bisherige Beinahe-Standbild direkt nach dem Treffer entfällt. Stattdessen sinkt das Tempo weich ab und steigt am Ende ebenso weich wieder an.
 - Das Review behält seine eigene Zeitlupe und bleibt orange.
 
