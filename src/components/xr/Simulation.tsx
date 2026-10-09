@@ -19,7 +19,7 @@ import { timeScaleFor } from "@/lib/timescale";
 import { playBallSound, pulse } from "@/lib/sfx";
 import { predictReturn } from "@/lib/trajectory";
 import { COUNTER_SHORT_IDEAL, defaultIdeal, findIdealShot, SHORT_BALL_Z, SHORT_PIPS_BACKSPIN_IDEAL } from "@/lib/idealShot";
-import { setSetting, settings, TARGET_X, TARGET_Z, useSettings } from "@/lib/settings";
+import { isTargetHit, setSetting, settings, TARGET_X, TARGET_Z, useSettings } from "@/lib/settings";
 import { series, summarizeSeries, toRps, type SeriesBall } from "@/lib/series";
 import { STROKES } from "@/lib/strokes";
 import { Menus } from "./LeftMenu";

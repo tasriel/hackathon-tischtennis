@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { RubberType, ServeType } from "./constants";
+import { BALL_RADIUS, RACKET_RADIUS, type RubberType, type ServeType } from "./constants";
 import type { SlowDuration } from "./timescale";
 
 export type TargetSpot = "left" | "center" | "right";
@@ -7,6 +7,11 @@ export const TARGET_X: Record<TargetSpot, number> = { left: -0.45, center: 0, ri
 export type TargetDepth = "short" | "long";
 /** Ziel-z auf der Gegnerseite: kurz ≈ 40 cm hinter dem Netz, lang ≈ 25 cm vor der Grundlinie. */
 export const TARGET_Z: Record<TargetDepth, number> = { short: -0.4, long: -1.37 + 0.25 };
+/** Zielscheiben-Radius inkl. äußerer Ringe + Ballradius (Durchmesser = 4 × Schlägerradius). */
+export const TARGET_HIT_RADIUS = RACKET_RADIUS * 2 + BALL_RADIUS;
+export function isTargetHit(x: number, z: number, tx: number, tz: number): boolean {
+  return Math.hypot(x - tx, z - tz) <= TARGET_HIT_RADIUS;
+}
 export const SERIES_LENGTHS = [5, 10, 20] as const;
 export type MenuTab = "ball" | "opponent" | "slow" | "display";
 
