@@ -212,11 +212,15 @@ export function collideRacket(
   }
   _r.copy(_n).multiplyScalar(-BALL_RADIUS);
   _vc.crossVectors(b.spin, _r).add(relT);
-  const grip = rubber?.grip ?? RACKET_GRIP;
+  const grip = rubber?.grip ?? PLAYER_GRIP;
   _dv.copy(_vc).multiplyScalar(-grip);
 
   // Rückprall tempoabhängig: sanfter Kontakt federt wenig, harter Schlag mehr
-  const e = (rubber?.restitution ?? RACKET_RESTITUTION) * (0.6 + 0.4 * Math.min(1, -vn / 9));
+  // Spieler: Gummi + Schwamm. Ein weicher Kontakt wird geschluckt, aktiver Schub ins Blatt
+  // drückt den Schwamm ein und katapultiert den Ball (statt hartem "Holz"-Rückprall).
+  const e = rubber
+    ? rubber.restitution * (0.6 + 0.4 * Math.min(1, -vn / 9))
+    : spongeRestitution(-vn, Math.max(0, -_rv.dot(_n)));
   const maxFrictionDelta = Math.max(0.35, grip * (1 + e) * -vn);
   if (_dv.length() > maxFrictionDelta) _dv.setLength(maxFrictionDelta);
   b.vel.copy(_rv).addScaledVector(_n, -vn * e).add(relT).add(_dv);
@@ -252,6 +256,19 @@ export function collideRacket(
   lastContact.point.copy(b.pos);
   b.pos.addScaledVector(_n, BALL_RADIUS * 1.2);
   return true;
+}
+
+/** griffiger Spielerbelag: mehr Spin aus der Schlagbewegung */
+export const PLAYER_GRIP = Math.min(0.75, RACKET_GRIP + 0.1);
+
+/**
+ * Rückprall des Spielerbelags: Grundrückprall gering (Schwamm schluckt), Schlägerschub
+ * ins Blatt (pushSpeed, m/s) lädt den Schwamm und erhöht den Rückprall (Katapult).
+ */
+export function spongeRestitution(impactSpeed: number, pushSpeed: number) {
+  const absorb = 0.45 + 0.25 * Math.min(1, impactSpeed / 9);
+  const catapult = 0.35 * Math.min(1, pushSpeed / 4);
+  return RACKET_RESTITUTION * (absorb + catapult);
 }
 
 /** Seitschnitt nur, wenn er sichtbar überwiegt (nicht bei leichtem Seitanteil). */
