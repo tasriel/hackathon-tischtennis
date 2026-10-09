@@ -98,6 +98,8 @@ export function Simulation() {
     hit: false,
     hitAt: 0,
     scale: 1,
+    squashAt: -1e9,
+    squashNormal: new THREE.Vector3(0, 0, 1),
     done: false,
     doneAt: 0,
     acc: 0,
