@@ -19,7 +19,8 @@ import { timeScaleFor } from "@/lib/timescale";
 import { playBallSound, pulse } from "@/lib/sfx";
 import { predictReturn } from "@/lib/trajectory";
 import { COUNTER_SHORT_IDEAL, defaultIdeal, findIdealShot, SHORT_BALL_Z, SHORT_PIPS_BACKSPIN_IDEAL } from "@/lib/idealShot";
-import { setSetting, settings, useSettings } from "@/lib/settings";
+import { setSetting, settings, TARGET_X, TARGET_Z, useSettings } from "@/lib/settings";
+import { series, summarizeSeries, toRps, type SeriesBall } from "@/lib/series";
 import { STROKES } from "@/lib/strokes";
 import { Menus } from "./LeftMenu";
 import { type ShotMetrics, type ShotResult } from "@/lib/coaching";
@@ -52,9 +53,20 @@ function BallSpinLabel({ ball }: { ball: ReturnType<typeof makeBall> }) {
   return (
     <>
       {opts.showSpeed && <BallSpeedLabel ball={ball} />}
+      {opts.showSpinValue && <BallRpsLabel ball={ball} />}
       <Label text={opts.showSpinText ? (d?.t ?? "") : ""} color={d?.c ?? "#ffffff"} bg="rgba(10,10,14,0.7)" height={0.045} position={[0, 0.07, 0]} />
     </>
   );
+}
+
+/** Provisorische Drehzahl (U/s) unter dem Ball. */
+function BallRpsLabel({ ball }: { ball: ReturnType<typeof makeBall> }) {
+  const [t, setT] = useState("");
+  useFrame(() => {
+    const next = `${Math.round(toRps(ball.spin.length()))} U/s`;
+    if (next !== t) setT(next);
+  });
+  return <Label text={t} color="#c4b5fd" bg="rgba(10,10,14,0.7)" height={0.035} position={[0, -0.065, 0]} />;
 }
 
 /** Nur zu Testzwecken: Ballgeschwindigkeit in km/h über dem Spin-Text. */
@@ -74,8 +86,9 @@ const RING = 180; // ~2 s bei 90 Hz
 const RESULT_COLORS = { success: "#2e9e4f", fail: "#c0392b" } as const;
 const TABLE_BLUE = new THREE.Color("#1d4f8a");
 
-// Schläger relativ zum Controller: Blatt ~13 cm vor der Hand
-const GRIP_OFFSET = new THREE.Vector3(0, 0.02, -0.13);
+// Schläger relativ zum Controller: Griffmitte liegt genau im Controller (Grip-Space-Ursprung),
+// die Blattmitte sitzt 15 cm davor entlang der Griffachse.
+const GRIP_OFFSET = new THREE.Vector3(0, 0, -0.15);
 const GRIP_ROT = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.5, 0, 0));
 
 export function Simulation() {
@@ -128,7 +141,10 @@ export function Simulation() {
     slowHintDone: false,
     currentShotLegal: false,
     invalidReturnStreak: 0,
+    /** Werte des ersten Spielerschlags für die laufende Serie */
+    ser: null as SeriesBall | null,
   });
+  const [seriesView, setSeriesView] = useState(0);
   const [serveHint, setServeHint] = useState(true);
   const [slowHint, setSlowHint] = useState(false);
   const [reviewHint, setReviewHint] = useState(false);
@@ -195,6 +211,12 @@ export function Simulation() {
     s.waitingForServe = !launch;
     s.idleSince = performance.now();
     s.currentShotLegal = false;
+    if (launch && settings.seriesActive) s.ser = { hit: false, legal: false, target: false, speedKmh: 0, spinRps: 0, rightSpin: false, deviation: 1 };
+    else s.ser = null;
+    if (launch && series.summary && !settings.seriesActive) {
+      series.summary = null;
+      setSeriesView((v) => v + 1);
+    }
     if (!launch) ball.vel.set(0, 0, 0);
     setServeHint(!launch);
     setSlowHint(false);
@@ -297,6 +319,18 @@ export function Simulation() {
       }
     }
     if (!s.hit && !s.slowHintDone && s.slowHintAttempts < 3) s.slowHintAttempts++;
+    if (s.ser && settings.seriesActive) {
+      series.balls.push(s.ser);
+      s.ser = null;
+      const done = series.balls.length;
+      setSetting("seriesDone", done);
+      if (done >= settings.seriesLength) {
+        series.summary = summarizeSeries(series.balls);
+        setSetting("seriesActive", false);
+        setSetting("seriesSummaryVersion", settings.seriesSummaryVersion + 1);
+        setSeriesView((v) => v + 1);
+      }
+    }
     s.idleSince = performance.now();
   };
 
@@ -490,6 +524,14 @@ export function Simulation() {
             sn.kind,
             shortBall ? COUNTER_SHORT_IDEAL : shortPipsPush ? SHORT_PIPS_BACKSPIN_IDEAL : undefined,
           );
+          if (s.ser && !s.ser.hit) {
+            const io = sn.ideal;
+            s.ser.hit = true;
+            s.ser.speedKmh = ball.vel.length() * 3.6;
+            s.ser.spinRps = toRps(ball.spin.length());
+            s.ser.rightSpin = spinType(ball) === STROKES[sn.kind].wantSpin;
+            s.ser.deviation = Math.min(1, Math.max(Math.abs(sn.openDeg - io.openDeg) / 18, Math.abs(sn.speed - io.speed) / 1.2, Math.abs(sn.dirDeg - io.dirDeg) / 25));
+          }
           s0.clipPending = true;
           sn.explain = explainContact(s.metrics);
           const nextPlan = s.returns < settings.returns ? planOpponentFromFlight(ball, settings.rubber) : null;
@@ -519,6 +561,10 @@ export function Simulation() {
           targetImpact.current.x = ball.pos.x;
           targetImpact.current.z = ball.pos.z;
           targetImpact.current.sequence++;
+          if (s.ser && s.returns === 0 && !s.ser.legal) {
+            s.ser.legal = true;
+            s.ser.target = Math.hypot(ball.pos.x - TARGET_X[settings.target], ball.pos.z - TARGET_Z[settings.targetDepth]) <= 0.19;
+          }
           if (s.phase === "opp" && s.plan) s.flashTarget = "success";
           else finish("success");
         }
@@ -661,6 +707,7 @@ export function Simulation() {
 
   });
 
+  const opts = useSettings();
   return (
     <>
       <GymRoom />
@@ -689,6 +736,14 @@ export function Simulation() {
           height={0.055}
           position={[0, 0.2, 0]}
         />
+        <Label
+          text={opts.seriesActive ? `Ball ${Math.min(opts.seriesDone + 1, opts.seriesLength)} / ${opts.seriesLength}` : ""}
+          color="#c4b5fd"
+          bg="rgba(5,9,20,0.92)"
+          height={0.04}
+          position={[0, 0.29, 0]}
+        />
+        <SeriesFallback key={seriesView} />
       </group>
       <primitive object={previewMesh} />
       <Target impact={targetImpact} />
@@ -721,4 +776,24 @@ function explainContact(m: ShotMetrics): string {
         ? "Belag reibt oben am Ball → Topspin"
         : "Reibung hebt den Spin auf";
   return `${blade} · ${move} → ${res}`;
+}
+
+/** Serien-Auswertung am Ballstart, falls das Review ausgeschaltet ist. */
+function SeriesFallback() {
+  const opts = useSettings();
+  const sum = series.summary;
+  if (!sum || opts.showReview) return null;
+  const pct = (x: number) => `${Math.round(x * 100)} %`;
+  const lines = [
+    `Serie ${sum.count} Bälle: ${sum.grade}`,
+    `Tempo Ø ${sum.avgSpeedKmh.toFixed(1).replace(".", ",")} km/h · Spin Ø ${Math.round(sum.avgSpinRps)} U/s`,
+    `Getroffen ${pct(sum.hitRate)} · Platte ${pct(sum.legalRate)} · Ziel ${pct(sum.targetRate)}`,
+  ];
+  return (
+    <>
+      {lines.map((t, i) => (
+        <Label key={i} text={t} color={i === 0 ? "#e6d36a" : "#f8fafc"} bg="rgba(5,9,20,0.92)" height={0.04} position={[0, 0.5 - i * 0.055, 0]} />
+      ))}
+    </>
+  );
 }

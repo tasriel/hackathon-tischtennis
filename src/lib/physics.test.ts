@@ -122,3 +122,34 @@ describe("Anpassungen #5", () => {
     for (const s of Object.values(SERVES)) expect(s.vel[2]).toBeLessThanOrEqual(4.5);
   });
 });
+
+import { summarizeSeries } from "./series";
+import { TARGET_Z as TARGET_DEPTH_Z, TABLE_OFFSETS } from "./settings";
+import { menuYaw, REVIEW_XR_POS } from "@/components/xr/LeftMenu";
+import * as THREE_ from "three";
+
+describe("Anpassungen #6", () => {
+  test("Tischhöhe bis +20 cm einstellbar", () => {
+    expect([...TABLE_OFFSETS]).toEqual([-0.05, 0, 0.05, 0.1, 0.15, 0.2]);
+  });
+  test("Ziel kurz ≈ 40 cm hinter dem Netz, lang ≈ 25 cm vor der Grundlinie", () => {
+    expect(TARGET_DEPTH_Z.short).toBeCloseTo(-0.4, 2);
+    expect(TARGET_DEPTH_Z.long).toBeCloseTo(-1.37 + 0.25, 2);
+  });
+  test("Serie: Durchschnitt und Trefferquoten", () => {
+    const b = (hit: boolean, legal: boolean, target: boolean, kmh: number) => ({ hit, legal, target, speedKmh: kmh, spinRps: 20, rightSpin: true, deviation: 0.2 });
+    const sum = summarizeSeries([b(true, true, true, 20), b(true, true, false, 30), b(false, false, false, 0), b(true, false, false, 25)]);
+    expect(sum.count).toBe(4);
+    expect(sum.avgSpeedKmh).toBeCloseTo(25, 5);
+    expect(sum.hitRate).toBeCloseTo(0.75, 5);
+    expect(sum.legalRate).toBeCloseTo(0.5, 5);
+    expect(sum.targetRate).toBeCloseTo(0.25, 5);
+  });
+  test("Einstellungsfenster weicht dem Review-Fenster aus", () => {
+    const head = new THREE_.Vector3(0, 1.6, 1.95);
+    const reviewYaw = Math.atan2(-(REVIEW_XR_POS.x - head.x), -(REVIEW_XR_POS.z - head.z));
+    const yaw = menuYaw(head, reviewYaw, REVIEW_XR_POS);
+    expect(Math.abs(yaw - reviewYaw)).toBeGreaterThan(0.5);
+    expect(menuYaw(head, 0, REVIEW_XR_POS)).toBe(0);
+  });
+});

@@ -8,6 +8,8 @@ export type IdealShot = {
   speed: number; // m/s (Simulationszeit, am Trefferpunkt)
   dirDeg: number; // Schwungrichtung: + = nach oben, − = nach unten (0 = waagerecht nach vorn)
   wrist: number; // empfohlene max. Handgelenk-Drehung (rad/s)
+  /** Drehzahl des Balls nach dem idealen Treffer (U/s), falls berechnet */
+  spinRps?: number;
   found: boolean;
 };
 
@@ -84,6 +86,7 @@ export function findIdealShot(
         b.pos.copy(point).addScaledVector(racket.normal, -0.001);
         if (!collideRacket(b, _prev, racket)) continue;
         const outSpin = spinType(b);
+        const rps = b.spin.length() / (2 * Math.PI);
         let score = -Infinity;
         let minNetGap = Infinity;
         for (let i = 0; i < 240 * 2; i++) {
@@ -102,7 +105,7 @@ export function findIdealShot(
         }
         if (score > bestScore) {
           bestScore = score;
-          best = { openDeg: open, speed, dirDeg: dir, wrist: 3, found: true };
+          best = { openDeg: open, speed, dirDeg: dir, wrist: 3, found: true, spinRps: rps };
         }
       }
     }
