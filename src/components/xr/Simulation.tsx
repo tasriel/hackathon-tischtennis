@@ -16,9 +16,10 @@ import {
   type RacketState,
 } from "@/lib/physics";
 import { timeScaleFor } from "@/lib/timescale";
+import { playBallSound, pulse } from "@/lib/sfx";
 import { predictReturn } from "@/lib/trajectory";
 import { COUNTER_SHORT_IDEAL, defaultIdeal, findIdealShot, SHORT_BALL_Z, SHORT_PIPS_BACKSPIN_IDEAL } from "@/lib/idealShot";
-import { setSetting, settings } from "@/lib/settings";
+import { setSetting, settings, useSettings } from "@/lib/settings";
 import { STROKES } from "@/lib/strokes";
 import { Menus } from "./LeftMenu";
 import { type ShotMetrics, type ShotResult } from "@/lib/coaching";
@@ -47,10 +48,11 @@ function BallSpinLabel({ ball }: { ball: ReturnType<typeof makeBall> }) {
     if (next !== k) setK(next);
   });
   const d = SPIN_DE[k];
+  const opts = useSettings();
   return (
     <>
-      <BallSpeedLabel ball={ball} />
-      <Label text={d?.t ?? ""} color={d?.c ?? "#ffffff"} bg="rgba(10,10,14,0.7)" height={0.045} position={[0, 0.07, 0]} />
+      {opts.showSpeed && <BallSpeedLabel ball={ball} />}
+      <Label text={opts.showSpinText ? (d?.t ?? "") : ""} color={d?.c ?? "#ffffff"} bg="rgba(10,10,14,0.7)" height={0.045} position={[0, 0.07, 0]} />
     </>
   );
 }
@@ -216,6 +218,7 @@ export function Simulation() {
     const s = sim.current;
     const plan = s.plan!;
     applyOpponentHit(ball, plan);
+    playBallSound("racket", ball.vel.length() / 6);
     _prevPos.copy(ball.pos);
     lastTest.pos.copy(racket.pos);
     lastTest.normal.copy(racket.normal);
@@ -394,7 +397,7 @@ export function Simulation() {
 
     // ---------- Simulation ----------
     const sinceHit = (performance.now() - s.hitAt) / 1000;
-    const scale = s.done && !s.hit ? 1 : timeScaleFor(settings.slowMotion, s.bouncedNear, ball.vel.y, s.hit, sinceHit, ball.pos.z, ball.vel.z);
+    const scale = s.done && !s.hit ? 1 : timeScaleFor(settings.slowMotion, s.bouncedNear, ball.vel.y, s.hit, sinceHit, ball.pos.z, ball.vel.z, { min: settings.slowStrength, duration: settings.slowDuration });
     s.scale = scale;
     racket.timeScale = scale;
     stepR.timeScale = scale;
@@ -408,7 +411,9 @@ export function Simulation() {
       s.acc -= PHYS_DT;
       steps++;
       _prevPos.copy(ball.pos);
+      const vyBefore = ball.vel.y;
       const ev = stepBall(ball, PHYS_DT);
+      if (ev === "table-near" || ev === "table-far") playBallSound("table", -vyBefore / 4);
       if (!s.hit) {
         if (ev === "table-near") {
           if (s.bouncedNear) finish("own");
@@ -426,6 +431,11 @@ export function Simulation() {
         if (hitNow) {
           _prevPos.copy(ball.pos);
           s.hit = true;
+          const hitStrength = Math.min(1, lastContact.racketVel.length() / 5);
+          playBallSound("racket", 0.4 + 0.6 * hitStrength);
+          pulse(controller?.inputSource?.gamepad, 0.25 + 0.5 * hitStrength, 30 + 20 * hitStrength);
+          s.squashAt = performance.now();
+          s.squashNormal.copy(lastContact.normal);
           s.slowHintDone = true;
           setSlowHint(false);
           s.hitAt = performance.now();
@@ -520,8 +530,19 @@ export function Simulation() {
       ballGroup.current.position.lerpVectors(_prevPos, ball.pos, Math.min(1, s.acc / PHYS_DT));
       const w = ball.spin.length();
       if (w > 0) {
-        _q.setFromAxisAngle(_tmp.copy(ball.spin).divideScalar(w), w * dt * scale);
+        _q.setFromAxisAngle(_tmp.copy(ball.spin).divideScalar(w), w * dt * (settings.realtimeSpin ? 1 : scale));
         ballGroup.current.children[0]!.quaternion.premultiply(_q);
+      }
+      // Belag-Eindruck: Ball kurz gestaucht und leicht ins Blatt versetzt (nur optisch)
+      const inner = ballGroup.current.children[0]!;
+      const sq = (performance.now() - s.squashAt) / 1000;
+      if (sq < 0.09) {
+        const k = Math.sin((sq / 0.09) * Math.PI);
+        inner.scale.setScalar(1 + 0.12 * k);
+        inner.position.copy(s.squashNormal).multiplyScalar(-0.006 * k);
+      } else if (inner.scale.x !== 1) {
+        inner.scale.setScalar(1);
+        inner.position.set(0, 0, 0);
       }
     }
     // ---------- Vorschau ----------
