@@ -1,8 +1,8 @@
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef, type RefObject } from "react";
 import * as THREE from "three";
-import { BALL_RADIUS, RACKET_RADIUS, TABLE } from "@/lib/constants";
-import { settings, TARGET_X, TARGET_Z } from "@/lib/settings";
+import { RACKET_RADIUS, TABLE } from "@/lib/constants";
+import { isTargetHit, settings, TARGET_X, TARGET_Z } from "@/lib/settings";
 import { SceneModel } from "./SceneModel";
 
 const TARGET_MODEL_URL: string = "/models/target-quality.glb";
@@ -78,7 +78,7 @@ export function Target({ impact }: { impact: RefObject<TargetImpact> }) {
     x.current += (TARGET_X[settings.target] - x.current) * (1 - Math.exp(-10 * dt));
     z.current += (TARGET_Z[settings.targetDepth] - z.current) * (1 - Math.exp(-10 * dt));
     const hit = impact.current.sequence !== lastImpact.current &&
-      Math.hypot(impact.current.x - x.current, impact.current.z - z.current) <= TARGET_DIAMETER / 2 + BALL_RADIUS;
+      isTargetHit(impact.current.x, impact.current.z, TARGET_X[settings.target], TARGET_Z[settings.targetDepth]);
     if (impact.current.sequence !== lastImpact.current) lastImpact.current = impact.current.sequence;
 
     if (hit) {

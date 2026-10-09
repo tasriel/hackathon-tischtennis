@@ -153,3 +153,13 @@ describe("Anpassungen #6", () => {
     expect(menuYaw(head, 0, REVIEW_XR_POS)).toBe(0);
   });
 });
+
+import { isTargetHit as _isTargetHit, TARGET_HIT_RADIUS as _R } from "./settings";
+describe("Zielscheibe", () => {
+  test("zählt Aufprall im äußeren Ring als Treffer", () => {
+    expect(_isTargetHit(_R - 0.005, 0, 0, 0)).toBe(true);
+  });
+  test("zählt Aufprall neben der Scheibe nicht", () => {
+    expect(_isTargetHit(_R + 0.01, 0, 0, 0)).toBe(false);
+  });
+});
