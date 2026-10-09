@@ -28,9 +28,9 @@ export const CONTACT_Z = 1.55; // erwartete Treffzone
 export type ServeType = "backspin" | "topspin" | "sidespin";
 type Serve = { pos: readonly [number, number, number]; vel: readonly [number, number, number]; spin: readonly [number, number, number] };
 export const SERVES: Record<ServeType, Serve> = {
-  backspin: { pos: [0.25, TABLE.height + 0.3, -1.5], vel: [0.0, 1.5, 5.0], spin: [-150, 0, 0] },
-  topspin: { pos: [0.25, TABLE.height + 0.3, -1.5], vel: [0.0, 2.2, 5.2], spin: [130, 0, 0] },
-  sidespin: { pos: [0.1, TABLE.height + 0.3, -1.5], vel: [0.1, 2.2, 5.0], spin: [60, 120, 0] },
+  backspin: { pos: [0.25, TABLE.height + 0.3, -1.5], vel: [0.0, 2.1, 4.25], spin: [-150, 0, 0] },
+  topspin: { pos: [0.25, TABLE.height + 0.3, -1.5], vel: [0.0, 2.8, 4.4], spin: [130, 0, 0] },
+  sidespin: { pos: [0.1, TABLE.height + 0.3, -1.5], vel: [0.085, 2.8, 4.25], spin: [60, 120, 0] },
 };
 export const SERVE = SERVES.backspin;
 
