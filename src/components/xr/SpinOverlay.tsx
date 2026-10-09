@@ -14,6 +14,8 @@ import { STROKES } from "@/lib/strokes";
 import { FREEZE_SCALE } from "@/lib/timescale";
 import { BallModel } from "./BallModel";
 import { Label } from "./Label";
+import { REVIEW_XR_POS } from "./LeftMenu";
+import { series, toRps } from "@/lib/series";
 
 /** Layer nur für die Nahaufnahme (Pfeile, Texte). Hauptkamera sieht ihn nicht. */
 export const OVERLAY_LAYER = 5;
@@ -330,6 +332,13 @@ export function SpinOverlay({
   const replayState = useRef<{ clip: ClipFrame[] | null; start: number }>({ clip: null, start: 0 });
 
   useFrame(() => {
+    // Review ausgeschaltet: Fenster samt Rahmen, Pfeilen und Texten ausblenden, nichts rendern
+    const on = settings.showReview;
+    for (const m of [panel.current, frame.current, labelsRef.current]) if (m) m.visible = on;
+    if (!on) {
+      for (const m of [arrowL.current, arrowR.current, attentionArrow.current]) if (m) m.visible = false;
+      return;
+    }
     const s = snap.current;
     const replay = s.ready && s.clip.length > 2;
     const ideal = s.ideal;
@@ -454,6 +463,11 @@ export function SpinOverlay({
         { k: "Richtung", du: sg(dir), ideal: sg(ideal.dirDeg), c: dirC },
       ];
       if (replay) rows.push({ k: "Spin", du: SP[outSpin] ?? "–", ideal: SP[spec.wantSpin]!, c: outSpin === spec.wantSpin ? OK : FAR });
+      if (replay) {
+        const rb = Math.round(toRps(s.spinBefore.length()));
+        const ra = Math.round(toRps(s.spinAfter.length()));
+        rows.push({ k: "U/s", du: `${rb}→${ra}`, ideal: ideal.spinRps != null ? `${Math.round(ideal.spinRps)}` : "–", c: ideal.spinRps != null ? grade(Math.abs(ra - ideal.spinRps), 4, 9) : TEXT_MUTED });
+      }
       const vd = replay ? verdict(rows.map((r) => r.c)) : { text: "", color: OK };
       const [tip1, tip2] = replay ? twoLines(advice(s)) : twoLines([s.tip ?? spec.tip], 34);
       const next: Texts = {
@@ -467,6 +481,23 @@ export function SpinOverlay({
         tip1,
         tip2,
       };
+      const sum = series.summary;
+      if (sum) {
+        const pct = (x: number) => `${Math.round(x * 100)} %`;
+        next.title = `Serie: ${sum.count} Bälle · ${STROKES[settings.serve].serveLabel}`;
+        next.state = "Auswertung · nächster Ball startet normal";
+        next.rows = [
+          { k: "Tempo Ø", du: `${sum.avgSpeedKmh.toFixed(1).replace(".", ",")} km/h`, ideal: "", c: TEXT_MUTED },
+          { k: "Spin Ø", du: `${Math.round(sum.avgSpinRps)} U/s`, ideal: `${pct(sum.rightSpinRate)} richtig`, c: TEXT_MUTED },
+          { k: "Getroffen", du: pct(sum.hitRate), ideal: "", c: TEXT_MUTED },
+          { k: "Platte", du: pct(sum.legalRate), ideal: "", c: TEXT_MUTED },
+          { k: "Ziel", du: pct(sum.targetRate), ideal: "", c: TEXT_MUTED },
+        ];
+        next.verdict = `Bewertung: ${sum.grade}`;
+        next.verdictC = sum.grade === "Sehr gut" ? OK : sum.grade === "Solide" ? "#e6d36a" : FAR;
+        next.tip1 = sum.grade === "Üben" ? "Technik im Review einzeln vergleichen," : "Weiter so – probiere eine andere";
+        next.tip2 = sum.grade === "Üben" ? "dann neue Serie starten." : "Schnitt-Variante oder ein anderes Ziel.";
+      }
       if (JSON.stringify(next) !== JSON.stringify(texts)) setTexts(next);
     }
 
@@ -514,7 +545,7 @@ export function SpinOverlay({
     if (!p) return;
     if (isXR) {
       // neben der Platte links, zum Spieler gedreht, groß genug zum Lesen
-      p.position.set(-1.3, 1.25, 0.85);
+      p.position.copy(REVIEW_XR_POS);
       p.rotation.set(0, 0.85, 0);
       p.scale.set(0.8, 0.45, 1);
     } else {

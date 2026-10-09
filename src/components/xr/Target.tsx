@@ -2,13 +2,12 @@ import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef, type RefObject } from "react";
 import * as THREE from "three";
 import { BALL_RADIUS, RACKET_RADIUS, TABLE } from "@/lib/constants";
-import { settings, TARGET_X } from "@/lib/settings";
+import { settings, TARGET_X, TARGET_Z } from "@/lib/settings";
 import { SceneModel } from "./SceneModel";
 
 const TARGET_MODEL_URL: string = "/models/target-quality.glb";
 const TARGET_DIAMETER = RACKET_RADIUS * 4;
 const TARGET_THICKNESS = 0.012;
-const TARGET_Z = -TABLE.length / 2 + 0.38;
 const CONFETTI_COUNT = 46;
 
 type Confetti = { x: number; z: number; vx: number; vy: number; vz: number; color: THREE.Color };
@@ -42,6 +41,7 @@ export function Target({ impact }: { impact: RefObject<TargetImpact> }) {
   const glow = useRef<THREE.Mesh>(null);
   const confetti = useRef<THREE.Points>(null);
   const x = useRef(0);
+  const z = useRef(TARGET_Z.long);
   const lastImpact = useRef(0);
   const effect = useRef(0);
   const confettiAge = useRef(99);
@@ -76,8 +76,9 @@ export function Target({ impact }: { impact: RefObject<TargetImpact> }) {
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
     x.current += (TARGET_X[settings.target] - x.current) * (1 - Math.exp(-10 * dt));
+    z.current += (TARGET_Z[settings.targetDepth] - z.current) * (1 - Math.exp(-10 * dt));
     const hit = impact.current.sequence !== lastImpact.current &&
-      Math.hypot(impact.current.x - x.current, impact.current.z - TARGET_Z) <= TARGET_DIAMETER / 2 + BALL_RADIUS;
+      Math.hypot(impact.current.x - x.current, impact.current.z - z.current) <= TARGET_DIAMETER / 2 + BALL_RADIUS;
     if (impact.current.sequence !== lastImpact.current) lastImpact.current = impact.current.sequence;
 
     if (hit) {
@@ -89,7 +90,7 @@ export function Target({ impact }: { impact: RefObject<TargetImpact> }) {
     confettiAge.current += dt;
 
     const pulse = hit ? 1.1 : 1 + Math.sin(effect.current * Math.PI) * 0.28;
-    if (root.current) root.current.position.set(x.current, TABLE.height + TARGET_THICKNESS / 2 + 0.002, TARGET_Z);
+    if (root.current) root.current.position.set(x.current, TABLE.height + TARGET_THICKNESS / 2 + 0.002, z.current);
     if (model.current?.scale) model.current.scale.set(pulse, pulse, pulse);
     if (glow.current?.scale) {
       glow.current.visible = effect.current > 0.02;

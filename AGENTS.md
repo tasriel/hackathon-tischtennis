@@ -17,3 +17,4 @@
 - Model opponent rubbers as physics constants (grip, restitution, spin retention) in constants.ts and keep the opponent racket a SceneModel visual, so rubber behaviour and textures stay independently swappable.
 - Trigger live slow motion from the first near-side bounce and predicted apex, while keeping replay timing and color independent.
 - Keep onboarding contextual and session-local: teach the right trigger at ball spawn, slow motion at activation, and review after repeated invalid returns.
+- Settings live in one tabbed panel placed once in front of the head when opened (X / Tab) and yaw-shifted away from the fixed review panel, so menus never overlap the always-visible review.

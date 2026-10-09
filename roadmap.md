@@ -29,3 +29,4 @@
 - [x] Anpassungen #4 (Rückschläge 0, Echtzeit-Tempo, Zeitlupe am Plattenende, Seitschnitt-Anzeige, Konter bei kurzem Ball)
 - [x] Situatives Intro: rechter-Trigger-Hinweis, kurze Zeitlupenerklärung, Review-Hinweis nach drei nicht regelkonformen Rückschlägen sowie Physik-Regressionstests.
 - [x] Anpassungen #5: Zeitlupe einstellbar (Stärke, Dauer inkl. Sofort), Rotation in Echtzeit, Anzeige-Schalter, Schwamm-Belag, langsamere Bälle, Tischhöhen-Justierung, Ballsound und Vibration.
+- [x] Anpassungen #6: Einstellungen per X-Knopf (ein Fenster mit Reitern, weicht dem Review aus), Review schaltbar, Ziel kurz/lang, Spin-Wert in U/s, Ballserie mit Auswertung, Tischhöhe bis +20 cm, Schlägergriff im Controller.
