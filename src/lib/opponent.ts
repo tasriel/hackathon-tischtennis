@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { OPPONENT_NET_GAP, OPPONENT_TARGET_X, RUBBERS, TABLE, type RubberType } from "./constants";
+import { OPPONENT_NET_GAP,
+  OPPONENT_MAX_SPEED, OPPONENT_TARGET_X, RUBBERS, TABLE, type RubberType } from "./constants";
 import { cloneBall, collideRacket, spinType, stepBall, type BallState, type RacketState } from "./physics";
 
 export const OPP_DT = 1 / 240;
@@ -68,6 +69,8 @@ export function applyOpponentHit(b: BallState, plan: OpponentPlan) {
 /** Fliegt der Ball und landet auf der Spielerseite? Liefert Bewertung oder −Infinity. */
 function rate(t: BallState, targetZ: number) {
   let gap = -1;
+  // Lehrball langsam halten: über ~18 km/h (5 m/s) wird deutlich abgewertet
+  const tooFast = Math.max(0, t.vel.length() - OPPONENT_MAX_SPEED) * 6;
   for (let i = 0; i < 600; i++) {
     const pz = t.pos.z;
     const e = stepBall(t, OPP_DT);
@@ -78,7 +81,8 @@ function rate(t: BallState, targetZ: number) {
       10 -
       Math.abs(t.pos.z - targetZ) * 5 -
       Math.abs(t.pos.x - OPPONENT_TARGET_X) * 4 -
-      Math.abs(gap - OPPONENT_NET_GAP) * 12;
+      Math.abs(gap - OPPONENT_NET_GAP) * 12 -
+      tooFast;
     return { ok: true, score: s };
   }
   return { ok: false, score: -2e3 };

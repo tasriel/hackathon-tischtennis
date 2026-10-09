@@ -72,6 +72,8 @@ export type Rubber = {
 export const OPPONENT_TARGET_X = 0.38;
 /** gewünschte Höhe über der Netzkante (m) – eher etwas höher als flach */
 export const OPPONENT_NET_GAP = 0.17;
+/** gewünschtes Höchsttempo des Lehrballs (m/s, ≈ 18 km/h) */
+export const OPPONENT_MAX_SPEED = 5;
 export const RUBBERS: Record<RubberType, Rubber> = {
   smooth: {
     label: "Glatt", grip: 0.75, restitution: 0.45, spinKeep: 1, color: "#c0392b", targetZ: 0.95,
