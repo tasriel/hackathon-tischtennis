@@ -156,10 +156,10 @@ describe("Anpassungen #6", () => {
 
 import { isTargetHit as _isTargetHit, TARGET_HIT_RADIUS as _R } from "./settings";
 describe("Zielscheibe", () => {
-  it("zählt Aufprall im äußeren Ring als Treffer", () => {
+  test("zählt Aufprall im äußeren Ring als Treffer", () => {
     expect(_isTargetHit(_R - 0.005, 0, 0, 0)).toBe(true);
   });
-  it("zählt Aufprall neben der Scheibe nicht", () => {
+  test("zählt Aufprall neben der Scheibe nicht", () => {
     expect(_isTargetHit(_R + 0.01, 0, 0, 0)).toBe(false);
   });
 });
