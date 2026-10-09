@@ -34,8 +34,17 @@
   - Bewertung je gewählter Schnitt-Variante: „Sehr gut / Solide / Üben“ anhand der Abweichung von der empfohlenen Technik.
 - Die Serie läuft nur in dieser Sitzung, nichts wird gespeichert.
 
+## 7. Kein Überlappen mit dem Review
+- Das Einstellungsfenster öffnet sich rechts vom Review-Fenster bzw. auf der anderen Blickseite. Es hält immer genügend Abstand, damit sich die beiden Fenster nie überlappen oder verdecken, auch nicht bei gedrehtem Kopf.
+
+## 8. Schläger richtig in der Hand
+- Der Griff (das Holz) sitzt genau im Controller. Man hält den Schläger also am Griff und greift nicht mehr unter dem Holz hindurch.
+- Die Trefferfläche wandert entsprechend mit, damit Physik und Optik zusammenpassen.
+
 ## Technische Details
 - `settings.ts`: `TABLE_OFFSETS` um 0.15 / 0.2; neue Werte `menuOpen`, `showReview`, `showSpinValue`, `targetDepth: "short" | "long"`, `seriesLength`, Serienzustand.
+- Menü-Platzierung: Kopfrichtung beim Öffnen, Winkelabstand zum festen Review-Fenster prüfen und bei zu geringem Abstand seitlich verschieben (Bounding-Box-Abstand > 0).
+- `RacketModel.tsx`/Griff-Offset: Griffmitte auf den Grip-Space-Ursprung des Controllers legen; Kontaktzentrum des Blatts in `Simulation.tsx` mit demselben Offset berechnen.
 - `LeftMenu.tsx` → ein Panel mit Reitern, Position relativ zur Kopfposition beim Öffnen (einmalig gesetzt, nicht kopfgebunden). X-Button über `useXRInputSourceState("controller","left")` `x-button`.
 - `SpinOverlay.tsx`: Sichtbarkeit über `showReview`; zusätzliche Tabellenzeile Spin; Serien-Auswertungsansicht.
 - `Target.tsx`/`Simulation.tsx`: Ziel-z aus `targetDepth`; Serienstatistik in `Simulation.tsx` sammeln (Ausgangstempo, Spin nach Treffer, `table-far`, Zieltreffer, Coaching-Abweichung).
