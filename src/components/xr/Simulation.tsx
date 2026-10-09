@@ -89,7 +89,8 @@ const TABLE_BLUE = new THREE.Color("#1d4f8a");
 // Schläger relativ zum Controller: Griffmitte liegt genau im Controller (Grip-Space-Ursprung),
 // die Blattmitte sitzt 15 cm davor entlang der Griffachse.
 const GRIP_OFFSET = new THREE.Vector3(0, 0, -0.15);
-const GRIP_ROT = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.5, 0, 0));
+// Stärker nach unten gekippt, damit das Griffholz in Linie mit dem Controller-Griff liegt.
+const GRIP_ROT = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.85, 0, 0));
 
 export function Simulation() {
   const ball = useMemo(() => makeBall(), []);
@@ -273,7 +274,7 @@ export function Simulation() {
   useEffect(() => {
     restart(false);
     const onKey = (e: KeyboardEvent) => {
-      if (e.code === "Space") restart();
+      if (e.code === "Space" && !settings.menuOpen) restart();
       if (e.code === "KeyW") sim.current.desktopTilt += 0.08;
       if (e.code === "KeyS") sim.current.desktopTilt -= 0.08;
     };
@@ -368,7 +369,7 @@ export function Simulation() {
     const dt = Math.min(rawDelta, 0.05);
     const s = sim.current;
 
-    const shouldShowServeHint = s.waitingForServe || (s.done && performance.now() - s.idleSince >= 7000);
+    const shouldShowServeHint = !settings.menuOpen && (s.waitingForServe || (s.done && performance.now() - s.idleSince >= 7000));
     if (shouldShowServeHint !== serveHint) setServeHint(shouldShowServeHint);
 
     // ---------- Schlägerpose ----------
@@ -393,7 +394,7 @@ export function Simulation() {
       }
       // Neustart per Trigger
       const pressed = controller.gamepad?.["xr-standard-trigger"]?.state === "pressed";
-      if (pressed && !trigWasPressed.current) restart();
+      if (pressed && !trigWasPressed.current && !settings.menuOpen) restart();
       trigWasPressed.current = pressed;
     } else {
       // Desktop: Maus bewegt den Schläger in der Trefferebene, W/S/Mausrad = Neigung
@@ -548,6 +549,16 @@ export function Simulation() {
           s.currentShotLegal = true;
           s.invalidReturnStreak = 0;
           setReviewHint(false);
+          if (s.opponentBounces === 0) {
+            // Aufprall deines Balls auf der Gegnerseite: Zielscheibe prüfen, auch wenn der Gegner zurückschlägt
+            targetImpact.current.x = ball.pos.x;
+            targetImpact.current.z = ball.pos.z;
+            targetImpact.current.sequence++;
+            if (s.ser && !s.ser.legal) {
+              s.ser.legal = true;
+              s.ser.target = isTargetHit(ball.pos.x, ball.pos.z, TARGET_X[settings.target], TARGET_Z[settings.targetDepth]);
+            }
+          }
           if (++s.opponentBounces > 1) finish("success");
         }
         else if (s.plan && s.oppClock >= s.plan.steps * PHYS_DT - 1e-6) opponentHit();
@@ -563,7 +574,7 @@ export function Simulation() {
           targetImpact.current.sequence++;
           if (s.ser && s.returns === 0 && !s.ser.legal) {
             s.ser.legal = true;
-            s.ser.target = Math.hypot(ball.pos.x - TARGET_X[settings.target], ball.pos.z - TARGET_Z[settings.targetDepth]) <= 0.19;
+            s.ser.target = isTargetHit(ball.pos.x, ball.pos.z, TARGET_X[settings.target], TARGET_Z[settings.targetDepth]);
           }
           if (s.phase === "opp" && s.plan) s.flashTarget = "success";
           else finish("success");
