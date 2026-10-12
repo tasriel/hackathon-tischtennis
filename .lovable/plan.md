@@ -11,10 +11,10 @@
 - Der Einstellbereich wird auf eine praxisgerechte Spanne um den korrigierten Ausgangswert begrenzt.
 - Änderungen wirken sofort auf Darstellung und Trefferfläche des Spielerschlägers; der Gegnerschläger bleibt unverändert.
 
-## 3. Einstellung dauerhaft speichern
-- Der gewählte Griffwinkel wird lokal im Browser beziehungsweise Headset gespeichert und beim nächsten Start wiederhergestellt.
-- Wenn noch kein Wert gespeichert ist oder ein ungültiger Wert vorliegt, wird sicher der korrigierte Standardwinkel verwendet.
-- Nur diese persönliche Kalibrierung wird gespeichert; Ballserien und Auswertungen bleiben weiterhin sitzungslokal.
+## 3. Griffwinkel und Tischhöhe dauerhaft speichern
+- Der gewählte Griffwinkel und die eingestellte Tischhöhe werden lokal im Browser beziehungsweise Headset gespeichert und beim nächsten Start wiederhergestellt.
+- Wenn noch kein Wert gespeichert ist oder ein ungültiger Wert vorliegt, werden sicher der korrigierte Standardwinkel beziehungsweise die normale Tischhöhe verwendet.
+- Nur diese persönlichen Kalibrierungen werden gespeichert; Ballserien und Auswertungen bleiben weiterhin sitzungslokal.
 
 ## 4. Einklappbare Desktop-Steuerung
 - Außerhalb des XR-Modus erscheint am Bildrand eine kurze, gut lesbare Steuerungsübersicht.
@@ -23,8 +23,8 @@
 - In VR wird diese Desktop-Hilfe nicht angezeigt.
 
 ## Technische Details
-- `settings.ts`: neuen Griffwinkelwert mit Begrenzung, Standardwert und gezielter Speicherung/Hydrierung ergänzen; SSR-sicher erst im Browser auf gespeicherte Werte zugreifen.
+- `settings.ts`: Griffwinkel und Tischhöhe mit Begrenzung, Standardwerten und gezielter Speicherung/Hydrierung ergänzen; SSR-sicher erst im Browser auf gespeicherte Werte zugreifen.
 - `Simulation.tsx`: die feste `GRIP_ROT` durch eine aus dem gespeicherten Winkel berechnete Quaternion ersetzen; Offset weiterhin in der resultierenden Griffausrichtung anwenden.
 - `LeftMenu.tsx`: Regler-/Stepper-Zeile in **Anzeige** ergänzen und das Layout so verdichten, dass alle Optionen im vorhandenen Panel bleiben.
 - `XRScene.tsx`: einklappbare Desktop-Hilfe über der 3D-Ansicht ergänzen und anhand des XR-Status ausblenden.
-- Kleine Tests für Standardwert, zulässigen Winkelbereich und gespeicherte Kalibrierung ergänzen; bestehende Physiktests weiter ausführen.
+- Kleine Tests für Standardwerte, zulässigen Winkelbereich und gespeicherte Kalibrierungen ergänzen; bestehende Physiktests weiter ausführen.
