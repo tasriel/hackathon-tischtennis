@@ -124,7 +124,17 @@ describe("Anpassungen #5", () => {
 });
 
 import { summarizeSeries } from "./series";
-import { TARGET_Z as TARGET_DEPTH_Z, TABLE_OFFSETS } from "./settings";
+import {
+  CALIBRATION_STORAGE_KEY,
+  clampGripAngle,
+  DEFAULT_GRIP_ANGLE_DEG,
+  GRIP_ANGLE_MAX_DEG,
+  GRIP_ANGLE_MIN_DEG,
+  loadCalibration,
+  settings,
+  TARGET_Z as TARGET_DEPTH_Z,
+  TABLE_OFFSETS,
+} from "./settings";
 import { menuYaw, REVIEW_XR_POS } from "@/components/xr/LeftMenu";
 import * as THREE_ from "three";
 
@@ -161,5 +171,33 @@ describe("Zielscheibe", () => {
   });
   test("zählt Aufprall neben der Scheibe nicht", () => {
     expect(_isTargetHit(_R + 0.01, 0, 0, 0)).toBe(false);
+  });
+});
+
+describe("Anpassungen #8", () => {
+  test("Griffwinkel startet nach oben korrigiert und bleibt im sicheren Bereich", () => {
+    expect(DEFAULT_GRIP_ANGLE_DEG).toBe(30);
+    expect(clampGripAngle(-20)).toBe(GRIP_ANGLE_MIN_DEG);
+    expect(clampGripAngle(90)).toBe(GRIP_ANGLE_MAX_DEG);
+  });
+
+  test("gespeicherter Griffwinkel und Tischhöhe werden gemeinsam geladen", () => {
+    const storage = {
+      getItem: (key: string) => key === CALIBRATION_STORAGE_KEY ? JSON.stringify({ gripAngleDeg: 42, tableOffset: 0.15 }) : null,
+      setItem: () => undefined,
+    };
+    expect(loadCalibration(storage)).toBe(true);
+    expect(settings.gripAngleDeg).toBe(42);
+    expect(settings.tableOffset).toBe(0.15);
+  });
+
+  test("ungültige gespeicherte Kalibrierung fällt auf sichere Standardwerte zurück", () => {
+    const storage = {
+      getItem: () => JSON.stringify({ gripAngleDeg: "falsch", tableOffset: 9 }),
+      setItem: () => undefined,
+    };
+    expect(loadCalibration(storage)).toBe(true);
+    expect(settings.gripAngleDeg).toBe(DEFAULT_GRIP_ANGLE_DEG);
+    expect(settings.tableOffset).toBe(0);
   });
 });

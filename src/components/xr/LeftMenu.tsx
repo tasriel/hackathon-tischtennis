@@ -4,6 +4,9 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { RUBBERS, type RubberType, type ServeType } from "@/lib/constants";
 import {
+  GRIP_ANGLE_MAX_DEG,
+  GRIP_ANGLE_MIN_DEG,
+  GRIP_ANGLE_STEP_DEG,
   SERIES_LENGTHS,
   setSetting,
   settings,
@@ -252,6 +255,24 @@ export function Menus() {
           ))}
           <Caption text="Tischhöhe" y={-0.29} />
           <Row items={TABLE_OFFSETS} y={-0.335} value={s.tableOffset} label={(v) => (v === 0 ? "0" : `${v > 0 ? "+" : "−"}${Math.round(Math.abs(v) * 100)}`)} onSelect={(v) => setSetting("tableOffset", v)} w={0.1} />
+          <Caption text="Griffwinkel" x={-0.2} y={-0.405} />
+          <MenuButton
+            label="−"
+            active={false}
+            position={[0.075, -0.405, 0]}
+            width={0.08}
+            height={0.052}
+            onSelect={() => setSetting("gripAngleDeg", Math.max(GRIP_ANGLE_MIN_DEG, s.gripAngleDeg - GRIP_ANGLE_STEP_DEG))}
+          />
+          <Label text={`${s.gripAngleDeg}°`} position={[0.19, -0.405, 0.018]} height={0.025} flat bg="rgba(0,0,0,0)" color={TEXT} />
+          <MenuButton
+            label="+"
+            active={false}
+            position={[0.305, -0.405, 0]}
+            width={0.08}
+            height={0.052}
+            onSelect={() => setSetting("gripAngleDeg", Math.min(GRIP_ANGLE_MAX_DEG, s.gripAngleDeg + GRIP_ANGLE_STEP_DEG))}
+          />
         </group>
       )}
     </group>

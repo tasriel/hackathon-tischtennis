@@ -89,8 +89,8 @@ const TABLE_BLUE = new THREE.Color("#1d4f8a");
 // Schläger relativ zum Controller: Griffmitte liegt genau im Controller (Grip-Space-Ursprung),
 // die Blattmitte sitzt 15 cm davor entlang der Griffachse.
 const GRIP_OFFSET = new THREE.Vector3(0, 0, -0.15);
-// Stärker nach unten gekippt, damit das Griffholz in Linie mit dem Controller-Griff liegt.
-const GRIP_ROT = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.85, 0, 0));
+const gripRotation = new THREE.Quaternion();
+const gripEuler = new THREE.Euler();
 
 export function Simulation() {
   const ball = useMemo(() => makeBall(), []);
@@ -382,7 +382,9 @@ export function Simulation() {
       obj.getWorldPosition(racket.pos);
       _hand.copy(racket.pos);
       obj.getWorldQuaternion(racket.quat);
-      racket.quat.multiply(GRIP_ROT);
+      // Positiver Kalibrierwinkel: Griff kippt nach unten, Blatt dreht sich nach oben.
+      gripRotation.setFromEuler(gripEuler.set(THREE.MathUtils.degToRad(settings.gripAngleDeg), 0, 0));
+      racket.quat.multiply(gripRotation);
       racket.pos.add(_tmp.copy(GRIP_OFFSET).applyQuaternion(racket.quat));
       // Armlänge begrenzen
       camera.getWorldPosition(_shoulder).add(_tmp.set(0.18, -0.3, 0));

@@ -30,3 +30,4 @@
 - [x] Situatives Intro: rechter-Trigger-Hinweis, kurze Zeitlupenerklärung, Review-Hinweis nach drei nicht regelkonformen Rückschlägen sowie Physik-Regressionstests.
 - [x] Anpassungen #5: Zeitlupe einstellbar (Stärke, Dauer inkl. Sofort), Rotation in Echtzeit, Anzeige-Schalter, Schwamm-Belag, langsamere Bälle, Tischhöhen-Justierung, Ballsound und Vibration.
 - [x] Anpassungen #6: Einstellungen per X-Knopf (ein Fenster mit Reitern, weicht dem Review aus), Review schaltbar, Ziel kurz/lang, Spin-Wert in U/s, Ballserie mit Auswertung, Tischhöhe bis +20 cm, Schlägergriff im Controller.
+- [x] Anpassungen #8: Griff nach oben korrigieren, Griffwinkel fein justieren, Griffwinkel und Tischhöhe dauerhaft speichern, einklappbare Desktop-Steuerung.
