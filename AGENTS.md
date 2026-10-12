@@ -14,3 +14,8 @@
 - Keep the court net as a single alpha-cutout texture plane using canonical net height, so the XR scene avoids a costly decorative net model without changing ball collisions.
 - Drive target celebrations from far-table impact events and keep floor markings hidden only during replay capture, so visual feedback is frame-rate-independent and the main hall retains its markings.
 - Draw the opaque review frame and image last in the transparent render queue without depth testing, so transparent nets and scene labels cannot cover the XR review panel.
+- Model opponent rubbers as physics constants (grip, restitution, spin retention) in constants.ts and keep the opponent racket a SceneModel visual, so rubber behaviour and textures stay independently swappable.
+- Trigger live slow motion from the first near-side bounce and predicted apex, while keeping replay timing and color independent.
+- Keep onboarding contextual and session-local: teach the right trigger at ball spawn, slow motion at activation, and review after repeated invalid returns.
+- Settings live in one tabbed panel placed once in front of the head when opened (X / Tab) and yaw-shifted away from the fixed review panel, so menus never overlap the always-visible review.
+- Persist only device calibration values in browser storage, so grip angle and table height survive restarts while training results remain session-local.

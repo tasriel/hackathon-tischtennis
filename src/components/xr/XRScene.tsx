@@ -1,12 +1,59 @@
 import { Canvas } from "@react-three/fiber";
-import { XR, XROrigin, createXRStore } from "@react-three/xr";
-import { useState } from "react";
+import { XR, XROrigin, createXRStore, useXR } from "@react-three/xr";
+import { ChevronDown, HelpCircle, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { PLAYER_Z, TABLE } from "@/lib/constants";
+import { loadCalibration, useSettings } from "@/lib/settings";
+import { Button } from "@/components/ui/button";
 import { Simulation } from "./Simulation";
+
+function XRStatus({ onChange }: { onChange: (active: boolean) => void }) {
+  const active = useXR((state) => state.session != null);
+  useEffect(() => onChange(active), [active, onChange]);
+  return null;
+}
+
+function DesktopHelp() {
+  const [open, setOpen] = useState(true);
+  if (!open) {
+    return (
+      <Button className="fixed left-4 top-4 z-20" size="icon" variant="secondary" onClick={() => setOpen(true)} title="Desktop-Steuerung öffnen" aria-label="Desktop-Steuerung öffnen">
+        <HelpCircle />
+      </Button>
+    );
+  }
+  return (
+    <aside className="fixed left-4 top-4 z-20 w-[min(20rem,calc(100vw-2rem))] rounded-md border border-border bg-card/95 p-4 text-card-foreground shadow-lg backdrop-blur-sm">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold">Desktop-Steuerung</h2>
+        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setOpen(false)} title="Steuerung einklappen" aria-label="Steuerung einklappen">
+          <X />
+        </Button>
+      </div>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
+        <dt className="font-semibold">Maus</dt><dd>Schläger bewegen</dd>
+        <dt className="font-semibold">W / S · Rad</dt><dd>Schläger neigen</dd>
+        <dt className="font-semibold">Leertaste</dt><dd>Ball einspielen</dd>
+        <dt className="font-semibold">Tab</dt><dd>Einstellungen</dd>
+        <dt className="font-semibold">1–3 · J/K/L</dt><dd>Schnitt · Ziel</dd>
+        <dt className="font-semibold">5–8 · 9–=</dt><dd>Belag · Rückschläge</dd>
+        <dt className="font-semibold">M · R</dt><dd>Zeitlupe · Review</dd>
+      </dl>
+      <Button variant="ghost" size="sm" className="mt-3 w-full" onClick={() => setOpen(false)}>
+        <ChevronDown /> Einklappen
+      </Button>
+    </aside>
+  );
+}
 
 // Zentrale Szenendatei (gemeinsam genutzt – Änderungen absprechen)
 export function XRScene() {
   const [store] = useState(() => createXRStore({ hand: false }));
+  const [isXR, setIsXR] = useState(false);
+  const { tableOffset } = useSettings();
+  useEffect(() => {
+    loadCalibration(window.localStorage);
+  }, []);
   return (
     <div className="fixed inset-0 bg-background">
       <Canvas
@@ -19,28 +66,24 @@ export function XRScene() {
         <hemisphereLight args={["#fff5e5", "#75987a", 1.3]} />
         <directionalLight position={[2.5, 5, 2.5]} intensity={1.35} color="#fff5e5" />
         <XR store={store}>
-          <XROrigin position={[0, 0, PLAYER_Z]} />
+          <XRStatus onChange={setIsXR} />
+          {/* Spieler tiefer setzen = Tisch wirkt höher; Physik bleibt unverändert */}
+          <XROrigin position={[0, -tableOffset, PLAYER_Z]} />
           <Simulation />
         </XR>
       </Canvas>
 
-      <div className="pointer-events-none fixed inset-x-0 top-0 flex flex-col items-center gap-2 p-4">
-        <h1 className="text-lg font-semibold text-foreground">Unterschnitt zurückspielen</h1>
-        <p className="max-w-xl text-center text-sm text-muted-foreground">
-          In VR: Schläger rechts, rechter Trigger = nächster Ball, Schnitt-Variante und Target links bedienen. Am Desktop: Maus bewegt den Schläger,
-          Mausrad oder W/S neigt ihn, Leertaste = nächster Ball, 1/2/3 = Schnitt, J/K/L = Target.
-        </p>
-      </div>
+      {!isXR && <DesktopHelp />}
 
-
-      <div className="fixed inset-x-0 bottom-6 flex justify-center">
-        <button
+      {!isXR && <div className="fixed inset-x-0 bottom-6 flex justify-center">
+        <Button
           onClick={() => store.enterVR()}
-          className="rounded-md bg-primary px-6 py-3 text-base font-semibold text-primary-foreground shadow-lg hover:bg-primary/90"
+          size="lg"
+          className="text-base"
         >
           VR starten
-        </button>
-      </div>
+        </Button>
+      </div>}
     </div>
   );
 }

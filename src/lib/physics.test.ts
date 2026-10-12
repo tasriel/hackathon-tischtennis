@@ -1,0 +1,203 @@
+import { describe, expect, test } from "bun:test";
+import * as THREE from "three";
+import { BALL_RADIUS, TABLE } from "./constants";
+import { cloneBall, collideRacket, makeBall, stepBall, type BallState, type RacketState } from "./physics";
+
+const DT = 1 / 240;
+
+type Flight = {
+  startSpeed: number;
+  netY: number | null;
+  bounceZ: number | null;
+  speedBeforeBounce: number | null;
+  spinX: number;
+};
+
+function simulateFlight(initial: BallState, wallScale = 1): Flight {
+  const ball = cloneBall(initial);
+  const startSpeed = ball.vel.length();
+  let netY: number | null = null;
+  let bounceZ: number | null = null;
+  let speedBeforeBounce: number | null = null;
+  let previousZ = ball.pos.z;
+
+  for (let elapsed = 0; elapsed < 2.5; elapsed += DT * wallScale) {
+    const steps = Math.max(1, Math.round(wallScale));
+    for (let i = 0; i < steps; i++) {
+      const speed = ball.vel.length();
+      const event = stepBall(ball, DT);
+      if (netY === null && previousZ >= 0 && ball.pos.z < 0) netY = ball.pos.y;
+      previousZ = ball.pos.z;
+      if (event === "table-far") {
+        bounceZ = ball.pos.z;
+        speedBeforeBounce = speed;
+        return { startSpeed, netY, bounceZ, speedBeforeBounce, spinX: ball.spin.x };
+      }
+      if (event === "net" || event === "floor") return { startSpeed, netY, bounceZ, speedBeforeBounce, spinX: ball.spin.x };
+    }
+  }
+  return { startSpeed, netY, bounceZ, speedBeforeBounce, spinX: ball.spin.x };
+}
+
+function strike(incomingVelocity: THREE.Vector3, incomingSpin: THREE.Vector3, racketVelocity: THREE.Vector3, openDeg: number) {
+  const ball = makeBall();
+  ball.pos.set(0.25, 1.02, 1.44);
+  ball.vel.copy(incomingVelocity);
+  ball.spin.copy(incomingSpin);
+  const previous = ball.pos.clone().addScaledVector(ball.vel, -DT);
+  const open = THREE.MathUtils.degToRad(openDeg);
+  const normal = new THREE.Vector3(0, Math.sin(open), 1).normalize();
+  const racket: RacketState = {
+    pos: ball.pos.clone(),
+    normal,
+    vel: racketVelocity.clone(),
+    angVel: new THREE.Vector3(),
+    handVel: racketVelocity.clone(),
+    quat: new THREE.Quaternion(),
+    timeScale: 1,
+  };
+  expect(collideRacket(ball, previous, racket)).toBe(true);
+  return ball;
+}
+
+describe("deterministische Ballphysik", () => {
+  const cases = [
+    {
+      name: "Unterschnitt-Schupf",
+      ball: () => strike(new THREE.Vector3(0, -0.4, 4.2), new THREE.Vector3(-95, 0, 0), new THREE.Vector3(0, -0.35, -2.4), 38),
+      spin: "back",
+    },
+    {
+      name: "frontaler Block",
+      ball: () => strike(new THREE.Vector3(0, -0.25, 5.0), new THREE.Vector3(45, 0, 0), new THREE.Vector3(0, 0.2, -3.0), -5),
+      spin: "controlled",
+    },
+    {
+      name: "Topspin-Konter",
+      ball: () => strike(new THREE.Vector3(0, -0.3, 5.2), new THREE.Vector3(80, 0, 0), new THREE.Vector3(0, 0.6, -3.0), -5),
+      spin: "controlled",
+    },
+  ] as const;
+
+  for (const scenario of cases) {
+    test(`${scenario.name}: Echtzeit und Zeitlupe ergeben dieselbe Flugbahn`, () => {
+      const struck = scenario.ball();
+      const real = simulateFlight(struck, 1);
+      const slow = simulateFlight(struck, 4);
+      expect(real.bounceZ).not.toBeNull();
+      expect(slow.bounceZ).toBeCloseTo(real.bounceZ ?? 0, 8);
+      expect(slow.netY).toBeCloseTo(real.netY ?? 0, 8);
+      expect(real.startSpeed).toBeGreaterThan(3.5);
+      expect(real.startSpeed).toBeLessThanOrEqual(7.5);
+      expect(real.speedBeforeBounce).not.toBeNull();
+      expect(real.speedBeforeBounce ?? Infinity).toBeLessThan(real.startSpeed);
+      expect(real.netY ?? 0).toBeGreaterThan(TABLE.height + TABLE.netHeight + BALL_RADIUS);
+      expect(real.bounceZ ?? -Infinity).toBeGreaterThanOrEqual(-TABLE.length / 2);
+      expect(real.bounceZ ?? Infinity).toBeLessThan(0);
+      if (scenario.spin === "back") expect(real.spinX).toBeLessThan(0);
+      expect(Math.abs(real.spinX)).toBeLessThan(180);
+    });
+  }
+});
+import { SERVES } from "./constants";
+import { spongeRestitution } from "./physics";
+import { timeScaleFor } from "./timescale";
+
+describe("Anpassungen #5", () => {
+  test("Schwamm: aktiver Schub katapultiert stärker als passives Hinhalten", () => {
+    expect(spongeRestitution(4, 3)).toBeGreaterThan(spongeRestitution(4, 0) + 0.1);
+  });
+
+  test("Zeitlupe ohne Standbild: nach dem Treffer nie langsamer als die eingestellte Stärke", () => {
+    for (let t = 0; t < 2; t += 0.05) {
+      expect(timeScaleFor(true, true, 0, true, t, 0, 0, { min: 0.3, duration: "medium" })).toBeGreaterThanOrEqual(0.3 - 1e-9);
+    }
+  });
+
+  test("Dauer „Sofort“: kurz nach dem Schlag wieder Normaltempo", () => {
+    expect(timeScaleFor(true, true, 0, true, 0.15, 0, 0, { min: 0.1, duration: "instant" })).toBeCloseTo(1, 5);
+  });
+
+  test("Einspielbälle kommen höchstens mit 4,5 m/s Vorwärtstempo", () => {
+    for (const s of Object.values(SERVES)) expect(s.vel[2]).toBeLessThanOrEqual(4.5);
+  });
+});
+
+import { summarizeSeries } from "./series";
+import {
+  CALIBRATION_STORAGE_KEY,
+  clampGripAngle,
+  DEFAULT_GRIP_ANGLE_DEG,
+  GRIP_ANGLE_MAX_DEG,
+  GRIP_ANGLE_MIN_DEG,
+  loadCalibration,
+  settings,
+  TARGET_Z as TARGET_DEPTH_Z,
+  TABLE_OFFSETS,
+} from "./settings";
+import { menuYaw, REVIEW_XR_POS } from "@/components/xr/LeftMenu";
+import * as THREE_ from "three";
+
+describe("Anpassungen #6", () => {
+  test("Tischhöhe bis +20 cm einstellbar", () => {
+    expect([...TABLE_OFFSETS]).toEqual([-0.05, 0, 0.05, 0.1, 0.15, 0.2]);
+  });
+  test("Ziel kurz ≈ 40 cm hinter dem Netz, lang ≈ 25 cm vor der Grundlinie", () => {
+    expect(TARGET_DEPTH_Z.short).toBeCloseTo(-0.4, 2);
+    expect(TARGET_DEPTH_Z.long).toBeCloseTo(-1.37 + 0.25, 2);
+  });
+  test("Serie: Durchschnitt und Trefferquoten", () => {
+    const b = (hit: boolean, legal: boolean, target: boolean, kmh: number) => ({ hit, legal, target, speedKmh: kmh, spinRps: 20, rightSpin: true, deviation: 0.2 });
+    const sum = summarizeSeries([b(true, true, true, 20), b(true, true, false, 30), b(false, false, false, 0), b(true, false, false, 25)]);
+    expect(sum.count).toBe(4);
+    expect(sum.avgSpeedKmh).toBeCloseTo(25, 5);
+    expect(sum.hitRate).toBeCloseTo(0.75, 5);
+    expect(sum.legalRate).toBeCloseTo(0.5, 5);
+    expect(sum.targetRate).toBeCloseTo(0.25, 5);
+  });
+  test("Einstellungsfenster weicht dem Review-Fenster aus", () => {
+    const head = new THREE_.Vector3(0, 1.6, 1.95);
+    const reviewYaw = Math.atan2(-(REVIEW_XR_POS.x - head.x), -(REVIEW_XR_POS.z - head.z));
+    const yaw = menuYaw(head, reviewYaw, REVIEW_XR_POS);
+    expect(Math.abs(yaw - reviewYaw)).toBeGreaterThan(0.5);
+    expect(menuYaw(head, 0, REVIEW_XR_POS)).toBe(0);
+  });
+});
+
+import { isTargetHit as _isTargetHit, TARGET_HIT_RADIUS as _R } from "./settings";
+describe("Zielscheibe", () => {
+  test("zählt Aufprall im äußeren Ring als Treffer", () => {
+    expect(_isTargetHit(_R - 0.005, 0, 0, 0)).toBe(true);
+  });
+  test("zählt Aufprall neben der Scheibe nicht", () => {
+    expect(_isTargetHit(_R + 0.01, 0, 0, 0)).toBe(false);
+  });
+});
+
+describe("Anpassungen #8", () => {
+  test("Griffwinkel startet nach oben korrigiert und bleibt im sicheren Bereich", () => {
+    expect(DEFAULT_GRIP_ANGLE_DEG).toBe(30);
+    expect(clampGripAngle(-20)).toBe(GRIP_ANGLE_MIN_DEG);
+    expect(clampGripAngle(90)).toBe(GRIP_ANGLE_MAX_DEG);
+  });
+
+  test("gespeicherter Griffwinkel und Tischhöhe werden gemeinsam geladen", () => {
+    const storage = {
+      getItem: (key: string) => key === CALIBRATION_STORAGE_KEY ? JSON.stringify({ gripAngleDeg: 42, tableOffset: 0.15 }) : null,
+      setItem: () => undefined,
+    };
+    expect(loadCalibration(storage)).toBe(true);
+    expect(settings.gripAngleDeg).toBe(42);
+    expect(settings.tableOffset).toBe(0.15);
+  });
+
+  test("ungültige gespeicherte Kalibrierung fällt auf sichere Standardwerte zurück", () => {
+    const storage = {
+      getItem: () => JSON.stringify({ gripAngleDeg: "falsch", tableOffset: 9 }),
+      setItem: () => undefined,
+    };
+    expect(loadCalibration(storage)).toBe(true);
+    expect(settings.gripAngleDeg).toBe(DEFAULT_GRIP_ANGLE_DEG);
+    expect(settings.tableOffset).toBe(0);
+  });
+});

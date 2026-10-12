@@ -21,3 +21,13 @@
 - [x] Hallenlinien blasser und nur in der Hauptansicht sichtbar; Review-Fenster deckend; Außenringe des Targets lösen Treffer-Effekte aus.
 - [x] Review-Fenster und Rahmen vor transparentem Netz und übriger Halle zeichnen, ohne das Netz in der Replay-Aufnahme zu entfernen.
 - [ ] Test auf der Quest 3 (braucht das Headset).
+- [x] Gegner mit vier Belägen (Glatt, lange Noppe, kurze Noppe, Anti), Fenster „Belag Gegner“, zwei Review-Aufnahmen mit Pfeilen.
+- [x] Gegner-Anpassungen Runde 2: Review links neben der Platte, Rückschlag garantiert in die Vorhand, Schlagtechnik je Belag, sichtbare Aushol-/Handgelenkbewegung, Tempo in km/h, kurze Noppe schwächt Spin je nach Eindringen ab.
+- [x] Gegner Runde 3: mehr Unterschnitt beim Glatt-Schupf, fließende Gegnerbewegung, 1–3 Rückschläge, Fenster im Bogen, kurze Noppe baut Spin langsam ab, Anti mit Schnittumkehr.
+- [x] Anpassungen #3: Live-Zeitlupe schaltbar und scheitelpunktgesteuert, Topspin-Tempo begrenzen, Gegner früh antizipieren lassen, kurze-Noppe-Schupf im Review.
+- [ ] Echte Belag-Texturen für den Gegnerschläger (folgen vom Team).
+- [x] Anpassungen #4 (Rückschläge 0, Echtzeit-Tempo, Zeitlupe am Plattenende, Seitschnitt-Anzeige, Konter bei kurzem Ball)
+- [x] Situatives Intro: rechter-Trigger-Hinweis, kurze Zeitlupenerklärung, Review-Hinweis nach drei nicht regelkonformen Rückschlägen sowie Physik-Regressionstests.
+- [x] Anpassungen #5: Zeitlupe einstellbar (Stärke, Dauer inkl. Sofort), Rotation in Echtzeit, Anzeige-Schalter, Schwamm-Belag, langsamere Bälle, Tischhöhen-Justierung, Ballsound und Vibration.
+- [x] Anpassungen #6: Einstellungen per X-Knopf (ein Fenster mit Reitern, weicht dem Review aus), Review schaltbar, Ziel kurz/lang, Spin-Wert in U/s, Ballserie mit Auswertung, Tischhöhe bis +20 cm, Schlägergriff im Controller.
+- [x] Anpassungen #8: Griff nach oben korrigieren, Griffwinkel fein justieren, Griffwinkel und Tischhöhe dauerhaft speichern, einklappbare Desktop-Steuerung.

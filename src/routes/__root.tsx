@@ -6,9 +6,11 @@ import {
   useRouter,
   HeadContent,
   Scripts,
+  type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
+type ErrorComponentType = (props: ErrorComponentProps) => ReactNode;
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
@@ -91,16 +93,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
   }),
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
-  errorComponent: ErrorComponent,
+  errorComponent: ErrorComponent as unknown as ErrorComponentType,
 });
 
 function RootShell({ children }: { children: ReactNode }) {
@@ -124,6 +123,17 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
+      <nav
+        aria-label="Rechtliches"
+        className="fixed bottom-2 left-3 z-10 flex gap-3 text-xs text-muted-foreground"
+      >
+        <a className="underline" href="https://start.icken.eu/impressum.html">
+          Impressum
+        </a>
+        <a className="underline" href="https://start.icken.eu/datenschutz.html">
+          Datenschutz
+        </a>
+      </nav>
     </QueryClientProvider>
   );
 }

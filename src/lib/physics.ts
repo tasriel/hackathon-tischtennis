@@ -148,6 +148,7 @@ const MAX_WRIST_BOOST = 1;
 const _hand = new THREE.Vector3();
 const _w = new THREE.Vector3();
 const _np = new THREE.Vector3();
+const _spinIn = new THREE.Vector3();
 
 /**
  * Wirksame Schlägergeschwindigkeit (Simulationszeit) an einem Punkt des Blatts.
@@ -177,6 +178,7 @@ export function collideRacket(
   prevPos: THREE.Vector3,
   r: RacketState,
   rPrev?: { pos: THREE.Vector3; normal: THREE.Vector3 },
+  rubber?: { grip: number; restitution: number; spinKeep: number; spinDamp?: number },
 ): boolean {
   _n.copy(r.normal).normalize();
   _np.copy(rPrev ? rPrev.normal : r.normal).normalize();
@@ -199,20 +201,50 @@ export function collideRacket(
 
   lastContact.spinBefore.copy(b.spin);
   lastContact.velBefore.copy(b.vel);
+  _spinIn.copy(b.spin);
   const relT = _vt.copy(_rel).addScaledVector(_n, -vn);
   // Kontaktpunktgeschwindigkeit inkl. Spin
+  if (rubber) {
+    // Eindringen in den Belag: je härter der Aufprall, desto mehr Spin wird geschluckt (nie umgekehrt)
+    const pen = rubber.spinDamp ? Math.max(0, 1 - -vn / rubber.spinDamp) : 1;
+    const keep = rubber.spinKeep * pen;
+    if (keep < 1) b.spin.multiplyScalar(keep);
+  }
   _r.copy(_n).multiplyScalar(-BALL_RADIUS);
   _vc.crossVectors(b.spin, _r).add(relT);
-  _dv.copy(_vc).multiplyScalar(-RACKET_GRIP);
+  const grip = rubber?.grip ?? PLAYER_GRIP;
+  _dv.copy(_vc).multiplyScalar(-grip);
 
   // Rückprall tempoabhängig: sanfter Kontakt federt wenig, harter Schlag mehr
-  const e = RACKET_RESTITUTION * (0.6 + 0.4 * Math.min(1, -vn / 9));
+  // Spieler: Gummi + Schwamm. Ein weicher Kontakt wird geschluckt, aktiver Schub ins Blatt
+  // drückt den Schwamm ein und katapultiert den Ball (statt hartem "Holz"-Rückprall).
+  const e = rubber
+    ? rubber.restitution * (0.6 + 0.4 * Math.min(1, -vn / 9))
+    : spongeRestitution(-vn, Math.max(0, -_rv.dot(_n)));
+  const maxFrictionDelta = Math.max(0.35, grip * (1 + e) * -vn);
+  if (_dv.length() > maxFrictionDelta) _dv.setLength(maxFrictionDelta);
   b.vel.copy(_rv).addScaledVector(_n, -vn * e).add(relT).add(_dv);
   _t.crossVectors(_r, _dv).multiplyScalar(3 / (2 * BALL_RADIUS * BALL_RADIUS));
   b.spin.add(_t);
 
+  // Kurze Noppen bauen vorhandenen Schnitt monoton ab: kein künstliches Umkippen.
+  if (rubber?.spinDamp && _spinIn.lengthSq() > 1e-8) {
+    const penetration = THREE.MathUtils.clamp(-vn / rubber.spinDamp, 0, 1);
+    const keep = rubber.spinKeep * (1 - penetration);
+    b.spin.copy(_spinIn).multiplyScalar(keep);
+    // Die Flugrichtung kehrt am Schläger um: x/z müssen deshalb ebenfalls drehen,
+    // damit z.B. Unterschnitt aus Spielersicht weiterhin Unterschnitt bleibt.
+    b.spin.x *= -1;
+    b.spin.z *= -1;
+  }
+
   // Begrenzen, damit nichts explodiert
-  if (b.vel.length() > 18) b.vel.setLength(18);
+  // Spieler: Ausgangstempo an Schlägertempo koppeln – ein Schupf bleibt langsam, ein Konter
+  // darf schneller werden, aber nie deutlich über realistische Grundschlag-Tempi.
+  const maxOutgoingSpeed = rubber
+    ? 10.5
+    : Math.min(7.5, Math.max(3.5, 0.45 * lastContact.velBefore.length() + 1.1 * _rv.length() + 0.8));
+  if (b.vel.length() > maxOutgoingSpeed) b.vel.setLength(maxOutgoingSpeed);
   if (b.spin.length() > 180) b.spin.setLength(180);
 
   lastContact.normal.copy(_n);
@@ -224,6 +256,24 @@ export function collideRacket(
   lastContact.point.copy(b.pos);
   b.pos.addScaledVector(_n, BALL_RADIUS * 1.2);
   return true;
+}
+
+/** griffiger Spielerbelag: mehr Spin aus der Schlagbewegung */
+export const PLAYER_GRIP = Math.min(0.75, RACKET_GRIP + 0.1);
+
+/**
+ * Rückprall des Spielerbelags: Grundrückprall gering (Schwamm schluckt), Schlägerschub
+ * ins Blatt (pushSpeed, m/s) lädt den Schwamm und erhöht den Rückprall (Katapult).
+ */
+export function spongeRestitution(impactSpeed: number, pushSpeed: number) {
+  const absorb = 0.45 + 0.25 * Math.min(1, impactSpeed / 9);
+  const catapult = 0.35 * Math.min(1, pushSpeed / 4);
+  return RACKET_RESTITUTION * (absorb + catapult);
+}
+
+/** Seitschnitt nur, wenn er sichtbar überwiegt (nicht bei leichtem Seitanteil). */
+export function isSideDominant(spin: THREE.Vector3) {
+  return Math.abs(spin.y) > 30 && Math.abs(spin.y) > Math.hypot(spin.x, spin.z) * 1.5;
 }
 
 /** Spin-Art relativ zur Flugrichtung. */

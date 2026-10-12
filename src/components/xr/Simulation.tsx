@@ -1,8 +1,9 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useXR, useXRInputSourceState } from "@react-three/xr";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { ARM_REACH, CONTACT_Z, TABLE } from "@/lib/constants";
+import { ARM_REACH, CONTACT_Z, RUBBERS, SERVES, TABLE, type ServeType } from "@/lib/constants";
+import { applyOpponentHit, planOpponentFromFlight, type OpponentPlan } from "@/lib/opponent";
 import {
   collideRacket,
   makeBall,
@@ -10,13 +11,17 @@ import {
   MAX_WRIST,
   resetServe,
   spinType,
+  isSideDominant,
   stepBall,
   type RacketState,
 } from "@/lib/physics";
 import { timeScaleFor } from "@/lib/timescale";
+import { playBallSound, pulse } from "@/lib/sfx";
 import { predictReturn } from "@/lib/trajectory";
-import { defaultIdeal, findIdealShot } from "@/lib/idealShot";
-import { settings } from "@/lib/settings";
+import { COUNTER_SHORT_IDEAL, defaultIdeal, findIdealShot, SHORT_BALL_Z, SHORT_PIPS_BACKSPIN_IDEAL } from "@/lib/idealShot";
+import { isTargetHit, setSetting, settings, TARGET_X, TARGET_Z, useSettings } from "@/lib/settings";
+import { series, summarizeSeries, toRps, type SeriesBall } from "@/lib/series";
+import { STROKES } from "@/lib/strokes";
 import { Menus } from "./LeftMenu";
 import { type ShotMetrics, type ShotResult } from "@/lib/coaching";
 import { BallModel } from "./BallModel";
@@ -26,7 +31,6 @@ import { SpinOverlay, makeSnapshot, CLIP_BEFORE, CLIP_AFTER, type ContactSnapsho
 import { Target, type TargetImpact } from "./Target";
 import { GymRoom } from "./GymRoom";
 import { Label } from "./Label";
-import { useState } from "react";
 
 const SPIN_DE: Record<string, { t: string; c: string }> = {
   BACKSPIN: { t: "Unterschnitt", c: "#70a5ff" },
@@ -41,21 +45,52 @@ function BallSpinLabel({ ball }: { ball: ReturnType<typeof makeBall> }) {
   useFrame(() => {
     const w = ball.spin.length();
     let next = "";
-    if (w > 5) next = Math.abs(ball.spin.y) > Math.hypot(ball.spin.x, ball.spin.z) * 0.8 ? "SIDE" : spinType(ball);
+    if (w > 5) next = isSideDominant(ball.spin) ? "SIDE" : spinType(ball);
     if (next !== k) setK(next);
   });
   const d = SPIN_DE[k];
-  return <Label text={d?.t ?? ""} color={d?.c ?? "#ffffff"} bg="rgba(10,10,14,0.7)" height={0.045} position={[0, 0.07, 0]} />;
+  const opts = useSettings();
+  return (
+    <>
+      {opts.showSpeed && <BallSpeedLabel ball={ball} />}
+      {opts.showSpinValue && <BallRpsLabel ball={ball} />}
+      <Label text={opts.showSpinText ? (d?.t ?? "") : ""} color={d?.c ?? "#ffffff"} bg="rgba(10,10,14,0.7)" height={0.045} position={[0, 0.07, 0]} />
+    </>
+  );
+}
+
+/** Provisorische Drehzahl (U/s) unter dem Ball. */
+function BallRpsLabel({ ball }: { ball: ReturnType<typeof makeBall> }) {
+  const [t, setT] = useState("");
+  useFrame(() => {
+    const next = `${Math.round(toRps(ball.spin.length()))} U/s`;
+    if (next !== t) setT(next);
+  });
+  return <Label text={t} color="#c4b5fd" bg="rgba(10,10,14,0.7)" height={0.035} position={[0, -0.065, 0]} />;
+}
+
+/** Nur zu Testzwecken: Ballgeschwindigkeit in km/h über dem Spin-Text. */
+function BallSpeedLabel({ ball }: { ball: ReturnType<typeof makeBall> }) {
+  const [t, setT] = useState("");
+  useFrame(() => {
+    const next = `${(ball.vel.length() * 3.6).toFixed(1).replace(".", ",")} km/h`;
+    if (next !== t) setT(next);
+  });
+  return <Label text={t} color="#fde68a" bg="rgba(10,10,14,0.7)" height={0.035} position={[0, 0.115, 0]} />;
 }
 
 const PHYS_DT = 1 / 240;
+const _c2 = new THREE.Vector3();
+const _Yup = new THREE.Vector3(0, 1, 0);
 const RING = 180; // ~2 s bei 90 Hz
 const RESULT_COLORS = { success: "#2e9e4f", fail: "#c0392b" } as const;
 const TABLE_BLUE = new THREE.Color("#1d4f8a");
 
-// Schläger relativ zum Controller: Blatt ~13 cm vor der Hand
-const GRIP_OFFSET = new THREE.Vector3(0, 0.02, -0.13);
-const GRIP_ROT = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.5, 0, 0));
+// Schläger relativ zum Controller: Griffmitte liegt genau im Controller (Grip-Space-Ursprung),
+// die Blattmitte sitzt 15 cm davor entlang der Griffachse.
+const GRIP_OFFSET = new THREE.Vector3(0, 0, -0.15);
+const gripRotation = new THREE.Quaternion();
+const gripEuler = new THREE.Euler();
 
 export function Simulation() {
   const ball = useMemo(() => makeBall(), []);
@@ -77,6 +112,8 @@ export function Simulation() {
     hit: false,
     hitAt: 0,
     scale: 1,
+    squashAt: -1e9,
+    squashNormal: new THREE.Vector3(0, 0, 1),
     done: false,
     doneAt: 0,
     acc: 0,
@@ -88,11 +125,38 @@ export function Simulation() {
     flashTarget: "none" as "none" | "success" | "fail",
     desktopTilt: 0.35,
     mouse: new THREE.Vector2(0, 0),
+    phase: "p1" as "p1" | "opp" | "p2",
+    plan: null as OpponentPlan | null,
+    oppClock: 0,
+    /** bisherige Rückschläge des Gegners in diesem Ballwechsel */
+    returns: 0,
+    /** Der ankommende Ball ist auf der Spielerseite genau einmal aufgesprungen. */
+    bouncedNear: false,
+    nearBounceZ: Infinity,
+    /** Aufsprünge auf der Gegnerseite seit dem Spielerkontakt. */
+    opponentBounces: 0,
+    /** wartet auf rechten Trigger / Leertaste statt automatisch einzuspielen */
+    waitingForServe: true,
+    idleSince: performance.now(),
+    slowHintAttempts: 0,
+    slowHintDone: false,
+    currentShotLegal: false,
+    invalidReturnStreak: 0,
+    /** Werte des ersten Spielerschlags für die laufende Serie */
+    ser: null as SeriesBall | null,
   });
+  const [seriesView, setSeriesView] = useState(0);
+  const [serveHint, setServeHint] = useState(true);
+  const [slowHint, setSlowHint] = useState(false);
+  const [reviewHint, setReviewHint] = useState(false);
 
   const ballGroup = useRef<THREE.Group>(null);
   const racketGroup = useRef<THREE.Group>(null);
-  const snap = useRef<ContactSnapshot>(makeSnapshot());
+  const shots = useMemo(() => [makeSnapshot(), makeSnapshot(), makeSnapshot(), makeSnapshot()], []);
+  const snap = useRef<ContactSnapshot>(shots[0]!);
+  const recording = useRef<ContactSnapshot>(shots[0]!);
+  const oppGroup = useRef<THREE.Group>(null);
+  const oppRest = useMemo(() => ({ pos: new THREE.Vector3(-0.15, 1.0, -1.75), normal: new THREE.Vector3(0, 0, 1) }), []);
   const targetImpact = useRef<TargetImpact>({ x: 0, z: 0, sequence: 0 });
   // Für die Vorschau: stärker geglättete Schlägerbewegung, damit die Kurve nicht zappelt
   const previewRacket = useMemo<RacketState>(
@@ -118,12 +182,18 @@ export function Simulation() {
   }, []);
   const previewAlpha = useRef(0);
 
-  const restart = () => {
+  const restart = (launch = true) => {
     resetServe(ball, settings.serve);
+    if (ballGroup.current) ballGroup.current.position.copy(ball.pos);
     s0.clipPending = false;
-    snap.current.active = false;
-    snap.current.ready = false;
-    snap.current.ideal = defaultIdeal(settings.serve);
+    for (const sh of shots) {
+      sh.active = false;
+      sh.ready = false;
+      sh.clip = [];
+    }
+    prepareShot(0, settings.serve, "");
+    setSetting("reviewCount", 1);
+    setSetting("reviewIndex", 0);
     _prevPos.copy(ball.pos);
     const s = sim.current;
     s.hit = false;
@@ -132,12 +202,79 @@ export function Simulation() {
     s.metrics = null;
     s.flashTarget = "none";
     s.lastSpin = "";
+    s.phase = "p1";
+    s.plan = null;
+    s.oppClock = 0;
+    s.returns = 0;
+    s.bouncedNear = false;
+    s.nearBounceZ = Infinity;
+    s.opponentBounces = 0;
+    s.waitingForServe = !launch;
+    s.idleSince = performance.now();
+    s.currentShotLegal = false;
+    if (launch && settings.seriesActive) s.ser = { hit: false, legal: false, target: false, speedKmh: 0, spinRps: 0, rightSpin: false, deviation: 1 };
+    else s.ser = null;
+    if (launch && series.summary && !settings.seriesActive) {
+      series.summary = null;
+      setSeriesView((v) => v + 1);
+    }
+    if (!launch) ball.vel.set(0, 0, 0);
+    setServeHint(!launch);
+    setSlowHint(false);
+  };
+
+  const prepareShot = (i: number, kind: ServeType, heading: string) => {
+    const sh = shots[i]!;
+    sh.active = false;
+    sh.ready = false;
+    sh.clip = [];
+    sh.kind = kind;
+    sh.ideal = defaultIdeal(kind);
+    sh.label = `Schlag ${i + 1}/${settings.returns + 1}`;
+    sh.heading = heading;
+    delete sh.strokeLabel;
+    delete sh.tip;
+    snap.current = sh;
+    recording.current = sh;
+  };
+
+  /** Gegner hat getroffen → Ball fliegt zum Spieler, zweiter Spielerschlag wird erwartet. */
+  const opponentHit = () => {
+    const s = sim.current;
+    const plan = s.plan!;
+    applyOpponentHit(ball, plan);
+    playBallSound("racket", ball.vel.length() / 6);
+    _prevPos.copy(ball.pos);
+    lastTest.pos.copy(racket.pos);
+    lastTest.normal.copy(racket.normal);
+    s.phase = "p2";
+    s.returns++;
+    s.hit = false;
+    s.bouncedNear = false;
+    s.nearBounceZ = Infinity;
+    s.opponentBounces = 0;
+    s.currentShotLegal = false;
+    s.flashTarget = "none";
+    s.metrics = null;
+    const side = isSideDominant(ball.spin);
+    const st = spinType(ball);
+    s.incoming = st;
+    const kind: ServeType = side ? "sidespin" : st === "BACKSPIN" ? "backspin" : "topspin";
+    const rb = RUBBERS[plan.rubber];
+    prepareShot(s.returns, kind, `Gegner ${rb.label} → ${STROKES[kind].stroke}`);
+    const nextShot = shots[s.returns];
+    if (nextShot && plan.rubber === "shortPips" && kind === "backspin") {
+      nextShot.strokeLabel = "Schupf (frontal)";
+      nextShot.tip = "Frontaler treffen, steiler von oben nach unten schupfen.";
+    }
+    setSetting("reviewCount", s.returns + 1);
+    setSetting("reviewIndex", s.returns);
   };
 
   useEffect(() => {
-    restart();
+    restart(false);
     const onKey = (e: KeyboardEvent) => {
-      if (e.code === "Space") restart();
+      if (e.code === "Space" && !settings.menuOpen) restart();
       if (e.code === "KeyW") sim.current.desktopTilt += 0.08;
       if (e.code === "KeyS") sim.current.desktopTilt -= 0.08;
     };
@@ -174,6 +311,28 @@ export function Simulation() {
       result,
     };
     m.result = result;
+    if (!s.currentShotLegal) {
+      s.invalidReturnStreak++;
+      if (s.invalidReturnStreak >= 3) {
+        s.invalidReturnStreak = 0;
+        setReviewHint(true);
+        window.setTimeout(() => setReviewHint(false), 4500);
+      }
+    }
+    if (!s.hit && !s.slowHintDone && s.slowHintAttempts < 3) s.slowHintAttempts++;
+    if (s.ser && settings.seriesActive) {
+      series.balls.push(s.ser);
+      s.ser = null;
+      const done = series.balls.length;
+      setSetting("seriesDone", done);
+      if (done >= settings.seriesLength) {
+        series.summary = summarizeSeries(series.balls);
+        setSetting("seriesActive", false);
+        setSetting("seriesSummaryVersion", settings.seriesSummaryVersion + 1);
+        setSeriesView((v) => v + 1);
+      }
+    }
+    s.idleSince = performance.now();
   };
 
   const _prevPos = useMemo(() => new THREE.Vector3(), []);
@@ -188,6 +347,11 @@ export function Simulation() {
   const _ray = useMemo(() => new THREE.Raycaster(), []);
   const _plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 0, 1), -CONTACT_Z), []);
   const trigWasPressed = useRef(false);
+  const oppFace = useRef<THREE.MeshStandardMaterial>(null);
+  const _oppN = useMemo(() => new THREE.Vector3(), []);
+  const _oppP = useMemo(() => new THREE.Vector3(), []);
+  const _oppA = useMemo(() => new THREE.Vector3(), []);
+  const _wristN = useMemo(() => new THREE.Vector3(), []);
   const s0 = useMemo(() => ({ clipPending: false }), []);
   const ring = useMemo<ClipFrame[]>(
     () => Array.from({ length: RING }, () => ({ t: 0, pos: new THREE.Vector3(), quat: new THREE.Quaternion(), ball: new THREE.Vector3(), spin: new THREE.Vector3() })),
@@ -205,6 +369,9 @@ export function Simulation() {
     const dt = Math.min(rawDelta, 0.05);
     const s = sim.current;
 
+    const shouldShowServeHint = !settings.menuOpen && (s.waitingForServe || (s.done && performance.now() - s.idleSince >= 7000));
+    if (shouldShowServeHint !== serveHint) setServeHint(shouldShowServeHint);
+
     // ---------- Schlägerpose ----------
     _lastRacket.copy(racket.pos);
     _lastNormal.copy(racket.normal);
@@ -215,7 +382,9 @@ export function Simulation() {
       obj.getWorldPosition(racket.pos);
       _hand.copy(racket.pos);
       obj.getWorldQuaternion(racket.quat);
-      racket.quat.multiply(GRIP_ROT);
+      // Positiver Kalibrierwinkel: Griff kippt nach unten, Blatt dreht sich nach oben.
+      gripRotation.setFromEuler(gripEuler.set(THREE.MathUtils.degToRad(settings.gripAngleDeg), 0, 0));
+      racket.quat.multiply(gripRotation);
       racket.pos.add(_tmp.copy(GRIP_OFFSET).applyQuaternion(racket.quat));
       // Armlänge begrenzen
       camera.getWorldPosition(_shoulder).add(_tmp.set(0.18, -0.3, 0));
@@ -227,7 +396,7 @@ export function Simulation() {
       }
       // Neustart per Trigger
       const pressed = controller.gamepad?.["xr-standard-trigger"]?.state === "pressed";
-      if (pressed && !trigWasPressed.current) restart();
+      if (pressed && !trigWasPressed.current && !settings.menuOpen) restart();
       trigWasPressed.current = pressed;
     } else {
       // Desktop: Maus bewegt den Schläger in der Trefferebene, W/S/Mausrad = Neigung
@@ -267,10 +436,13 @@ export function Simulation() {
 
     // ---------- Simulation ----------
     const sinceHit = (performance.now() - s.hitAt) / 1000;
-    const scale = s.done && !s.hit ? 1 : timeScaleFor(ball.pos.z, s.hit, sinceHit);
+    const scale = s.done && !s.hit ? 1 : timeScaleFor(settings.slowMotion, s.bouncedNear, ball.vel.y, s.hit, sinceHit, ball.pos.z, ball.vel.z, { min: settings.slowStrength, duration: settings.slowDuration });
     s.scale = scale;
     racket.timeScale = scale;
     stepR.timeScale = scale;
+    const shouldShowSlowHint = !s.waitingForServe && !s.done && !s.hit && settings.slowMotion && scale < 0.85 && !s.slowHintDone && s.slowHintAttempts < 3;
+    if (shouldShowSlowHint !== slowHint) setSlowHint(shouldShowSlowHint);
+    if (s.waitingForServe) return;
     s.acc += dt * scale;
     const planned = Math.min(40, Math.floor(s.acc / PHYS_DT));
     let steps = 0;
@@ -278,8 +450,17 @@ export function Simulation() {
       s.acc -= PHYS_DT;
       steps++;
       _prevPos.copy(ball.pos);
+      const vyBefore = ball.vel.y;
       const ev = stepBall(ball, PHYS_DT);
+      if (ev === "table-near" || ev === "table-far") playBallSound("table", -vyBefore / 4);
       if (!s.hit) {
+        if (ev === "table-near") {
+          if (s.bouncedNear) finish("own");
+          else {
+            s.bouncedNear = true;
+            s.nearBounceZ = ball.pos.z;
+          }
+        }
         const a = steps / Math.max(planned, 1);
         stepR.pos.lerpVectors(_lastRacket, racket.pos, a);
         stepR.normal.lerpVectors(_lastNormal, racket.normal, a).normalize();
@@ -289,6 +470,13 @@ export function Simulation() {
         if (hitNow) {
           _prevPos.copy(ball.pos);
           s.hit = true;
+          const hitStrength = Math.min(1, lastContact.racketVel.length() / 5);
+          playBallSound("racket", 0.4 + 0.6 * hitStrength);
+          pulse(controller?.inputSource?.gamepad, 0.25 + 0.5 * hitStrength, 30 + 20 * hitStrength);
+          s.squashAt = performance.now();
+          s.squashNormal.copy(lastContact.normal);
+          s.slowHintDone = true;
+          setSlowHint(false);
           s.hitAt = performance.now();
           const toFar = _tmp.copy(racket.normal);
           if (toFar.z > 0) toFar.negate();
@@ -301,7 +489,9 @@ export function Simulation() {
             forwardSpeed: -rv.z,
             result: "miss",
           };
-          const sn = snap.current;
+          const sn = recording.current;
+          snap.current = sn;
+          setSetting("reviewIndex", s.returns);
           sn.active = true;
           sn.t0 = performance.now();
           sn.point.copy(lastContact.point);
@@ -316,17 +506,80 @@ export function Simulation() {
           sn.dirDeg = THREE.MathUtils.radToDeg(Math.atan2(rv.y, Math.max(-rv.z, 1e-3)));
           sn.wrist = racket.angVel.length();
           sn.scale = scale;
-          sn.ideal = findIdealShot(lastContact.point, lastContact.velBefore, lastContact.spinBefore, settings.serve);
+          if (s.phase === "p2") {
+            // Ideal-Schlag nach dem tatsächlichen Spin direkt vor dem Treffer
+            const sb = lastContact.spinBefore;
+            const vb = _tmp.copy(lastContact.velBefore).setY(0).normalize();
+            const top = _c2.crossVectors(sb, _Yup).dot(vb);
+            const side = isSideDominant(sb);
+            sn.kind = side ? "sidespin" : top < -8 ? "backspin" : "topspin";
+          }
+          const shortPipsPush = sn.kind === "backspin" && s.returns > 0 && s.plan?.rubber === "shortPips";
+          const shortBall = sn.kind !== "backspin" && s.nearBounceZ < SHORT_BALL_Z;
+          if (shortBall) {
+            sn.strokeLabel = "Konter / Schuss";
+            sn.tip = "Früh hoch ansetzen, frontal durchschlagen, kleiner Handgelenkschwung.";
+          }
+          sn.ideal = findIdealShot(
+            lastContact.point,
+            lastContact.velBefore,
+            lastContact.spinBefore,
+            sn.kind,
+            shortBall ? COUNTER_SHORT_IDEAL : shortPipsPush ? SHORT_PIPS_BACKSPIN_IDEAL : undefined,
+          );
+          if (s.ser && !s.ser.hit) {
+            const io = sn.ideal;
+            s.ser.hit = true;
+            s.ser.speedKmh = ball.vel.length() * 3.6;
+            s.ser.spinRps = toRps(ball.spin.length());
+            s.ser.rightSpin = spinType(ball) === STROKES[sn.kind].wantSpin;
+            s.ser.deviation = Math.min(1, Math.max(Math.abs(sn.openDeg - io.openDeg) / 18, Math.abs(sn.speed - io.speed) / 1.2, Math.abs(sn.dirDeg - io.dirDeg) / 25));
+          }
           s0.clipPending = true;
           sn.explain = explainContact(s.metrics);
+          const nextPlan = s.returns < settings.returns ? planOpponentFromFlight(ball, settings.rubber) : null;
+          if (nextPlan) {
+            s.phase = "opp";
+            s.plan = nextPlan;
+            s.oppClock = 0;
+            s.opponentBounces = 0;
+          }
         } else if (!s.done && (ball.pos.z > CONTACT_Z + 0.6 || ev === "floor")) finish("miss");
+      } else if (!s.done && s.phase === "opp") {
+        s.oppClock += PHYS_DT;
+        if (ev === "table-far") {
+          s.currentShotLegal = true;
+          s.invalidReturnStreak = 0;
+          setReviewHint(false);
+          if (s.opponentBounces === 0) {
+            // Aufprall deines Balls auf der Gegnerseite: Zielscheibe prüfen, auch wenn der Gegner zurückschlägt
+            targetImpact.current.x = ball.pos.x;
+            targetImpact.current.z = ball.pos.z;
+            targetImpact.current.sequence++;
+            if (s.ser && !s.ser.legal) {
+              s.ser.legal = true;
+              s.ser.target = isTargetHit(ball.pos.x, ball.pos.z, TARGET_X[settings.target], TARGET_Z[settings.targetDepth]);
+            }
+          }
+          if (++s.opponentBounces > 1) finish("success");
+        }
+        else if (s.plan && s.oppClock >= s.plan.steps * PHYS_DT - 1e-6) opponentHit();
+        else if (ev) finish("success");
       } else if (!s.done) {
         if (ev === "net") finish("net");
         else if (ev === "table-far") {
+          s.currentShotLegal = true;
+          s.invalidReturnStreak = 0;
+          setReviewHint(false);
           targetImpact.current.x = ball.pos.x;
           targetImpact.current.z = ball.pos.z;
           targetImpact.current.sequence++;
-          finish("success");
+          if (s.ser && s.returns === 0 && !s.ser.legal) {
+            s.ser.legal = true;
+            s.ser.target = isTargetHit(ball.pos.x, ball.pos.z, TARGET_X[settings.target], TARGET_Z[settings.targetDepth]);
+          }
+          if (s.phase === "opp" && s.plan) s.flashTarget = "success";
+          else finish("success");
         }
         else if (ev === "table-near") finish("own");
         else if (ev === "floor" || ball.pos.z < -TABLE.length / 2 - 0.3 || ball.pos.z > 3) finish("out");
@@ -338,8 +591,19 @@ export function Simulation() {
       ballGroup.current.position.lerpVectors(_prevPos, ball.pos, Math.min(1, s.acc / PHYS_DT));
       const w = ball.spin.length();
       if (w > 0) {
-        _q.setFromAxisAngle(_tmp.copy(ball.spin).divideScalar(w), w * dt * scale);
+        _q.setFromAxisAngle(_tmp.copy(ball.spin).divideScalar(w), w * dt * (settings.realtimeSpin ? 1 : scale));
         ballGroup.current.children[0]!.quaternion.premultiply(_q);
+      }
+      // Belag-Eindruck: Ball kurz gestaucht und leicht ins Blatt versetzt (nur optisch)
+      const inner = ballGroup.current.children[0]!;
+      const sq = (performance.now() - s.squashAt) / 1000;
+      if (sq < 0.09) {
+        const k = Math.sin((sq / 0.09) * Math.PI);
+        inner.scale.setScalar(1 + 0.12 * k);
+        inner.position.copy(s.squashNormal).multiplyScalar(-0.006 * k);
+      } else if (inner.scale.x !== 1) {
+        inner.scale.setScalar(1);
+        inner.position.set(0, 0, 0);
       }
     }
     // ---------- Vorschau ----------
@@ -370,6 +634,67 @@ export function Simulation() {
       tableMats.current.far.emissive.set(target === "success" ? col : "#000000").multiplyScalar(s.flash * 0.4);
     }
 
+    // ---------- Review-Auswahl ----------
+    const pick = shots[Math.min(settings.reviewIndex, shots.length - 1)]!;
+    if (settings.reviewCount > 1 && snap.current !== pick) snap.current = pick;
+
+    // ---------- Gegner-Schläger ----------
+    const og = oppGroup.current;
+    if (og) {
+      const plan = s.plan;
+      const tc = plan ? s.oppClock - plan.steps * PHYS_DT : -10;
+      _oppN.copy(oppRest.normal);
+      _oppP.copy(oppRest.pos);
+      if (plan && (s.phase === "opp" || tc < 1.2)) {
+        // Ganzheitliche Bewegung: Ruhe → Ausholen → Treffer → Ausschwung → Ruhe.
+        // Handgelenk: Blatt dreht sich um die Querachse mit (Ausholen +, Ausschwung −).
+        const sp = plan.vel.length();
+        _tmp.copy(plan.vel).normalize();
+        const isTopspin = plan.stroke.includes("Topspin");
+        const isPush = plan.stroke.includes("Schupf");
+        const passive = plan.rubber === "longPips" || plan.rubber === "anti";
+        const back = passive ? 0.11 : Math.min(0.32, 0.12 + sp * 0.05);
+        const follow = passive ? 0.1 : Math.min(0.3, 0.1 + sp * 0.06);
+        const axis = _oppA.crossVectors(_tmp, _Yup).normalize();
+        // Zeit bis zum Treffer ab Aufsprung: erst Anfahrt + Blatt eindrehen, dann gerader Schwung
+        const T = Math.max(0.32, plan.steps * PHYS_DT);
+        const swing = Math.min(0.3, T * 0.4);
+        let off: number, wrist: number, w: number;
+        if (tc < -swing) {
+          // Anfahrt zur Ausholposition, Blattwinkel dreht dabei schon ein
+          w = THREE.MathUtils.smootherstep(tc, -T, -swing);
+          off = -back;
+          wrist = 0;
+        } else if (tc < 0) {
+          // Schwung von hinten nach vorne mit festem Blattwinkel
+          const k = (tc + swing) / swing;
+          w = 1;
+          off = -back * (1 - k);
+          wrist = 0;
+        } else if (tc < 0.2) {
+          const k = THREE.MathUtils.smoothstep(tc, 0, 0.2);
+          w = 1;
+          off = follow * k;
+          wrist = -0.3 * k;
+        } else {
+          w = 1 - THREE.MathUtils.smootherstep(tc, 0.3, 1.1);
+          off = follow;
+          wrist = -0.3;
+        }
+        const at = _c2.copy(plan.point).addScaledVector(_tmp, off);
+        if (isTopspin) at.y += off < 0 ? -0.1 * Math.abs(off) / Math.max(back, 0.01) : 0.14 * off / Math.max(follow, 0.01);
+        else if (isPush) at.y += off < 0 ? 0.08 * Math.abs(off) / Math.max(back, 0.01) : -0.08 * off / Math.max(follow, 0.01);
+        _oppP.lerp(at, w);
+        _wristN.copy(plan.normal).applyAxisAngle(axis, wrist);
+        _oppN.lerp(_wristN, w).normalize();
+      }
+      // leichte Glättung nur gegen Sprünge beim Neustart, Bahn selbst ist stetig
+      og.position.lerp(_oppP, 1 - Math.exp(-25 * dt));
+      _q.setFromUnitVectors(_X, _oppN);
+      og.quaternion.slerp(_q, 1 - Math.exp(-25 * dt));
+      oppFace.current?.color.set(RUBBERS[settings.rubber].color);
+    }
+
     // ---------- Aufzeichnung für die Overlay-Animation ----------
     const now = performance.now();
     const fr = ring[ringIdx.current % RING]!;
@@ -379,7 +704,7 @@ export function Simulation() {
     fr.quat.copy(racket.quat);
     if (ballGroup.current) fr.ball.copy(ballGroup.current.position);
     fr.spin.copy(ball.spin);
-    const sn = snap.current;
+    const sn = recording.current;
     if (s0.clipPending && now - sn.t0 > CLIP_AFTER * 1000) {
       s0.clipPending = false;
       const frames: ClipFrame[] = [];
@@ -395,6 +720,7 @@ export function Simulation() {
 
   });
 
+  const opts = useSettings();
   return (
     <>
       <GymRoom />
@@ -407,16 +733,49 @@ export function Simulation() {
           <BallModel getTimeScale={() => sim.current.scale} />
         </group>
         <BallSpinLabel ball={ball} />
+        <Label
+          text={slowHint ? "Ball in Zeitlupe – du schlägst normal schnell" : ""}
+          color="#fde68a"
+          bg="rgba(5,9,20,0.92)"
+          height={0.048}
+          position={[0, 0.18, 0]}
+        />
+      </group>
+      <group position={SERVES[settings.serve].pos}>
+        <Label
+          text={serveHint ? (isXR ? "Rechter Trigger: Ball einspielen" : "Leertaste: Ball einspielen") : ""}
+          color="#f8fafc"
+          bg="rgba(5,9,20,0.92)"
+          height={0.055}
+          position={[0, 0.2, 0]}
+        />
+        <Label
+          text={opts.seriesActive ? `Ball ${Math.min(opts.seriesDone + 1, opts.seriesLength)} / ${opts.seriesLength}` : ""}
+          color="#c4b5fd"
+          bg="rgba(5,9,20,0.92)"
+          height={0.04}
+          position={[0, 0.29, 0]}
+        />
+        <SeriesFallback key={seriesView} />
       </group>
       <primitive object={previewMesh} />
       <Target impact={targetImpact} />
+      <group ref={oppGroup} position={oppRest.pos}>
+        <RacketModel />
+        {/* Platzhalter-Belagfarbe bis zu den echten Texturen */}
+        <mesh position={[0.014, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+          <circleGeometry args={[0.078, 32]} />
+          <meshStandardMaterial ref={oppFace} color={RUBBERS.smooth.color} roughness={0.7} />
+        </mesh>
+      </group>
       <Menus />
-      <SpinOverlay ball={ball} racket={racket} snap={snap} ballObj={ballGroup} racketObj={racketGroup} getScale={() => sim.current.scale} />
+      <SpinOverlay ball={ball} racket={racket} snap={snap} ballObj={ballGroup} racketObj={racketGroup} getScale={() => sim.current.scale} attention={reviewHint} />
     </>
   );
 }
 
 const _c = new THREE.Color();
+const _X = new THREE.Vector3(1, 0, 0);
 
 /** Kurze Erklärung, warum der Ball so zurückkommt (Kontakt-Moment im Overlay). */
 function explainContact(m: ShotMetrics): string {
@@ -430,4 +789,24 @@ function explainContact(m: ShotMetrics): string {
         ? "Belag reibt oben am Ball → Topspin"
         : "Reibung hebt den Spin auf";
   return `${blade} · ${move} → ${res}`;
+}
+
+/** Serien-Auswertung am Ballstart, falls das Review ausgeschaltet ist. */
+function SeriesFallback() {
+  const opts = useSettings();
+  const sum = series.summary;
+  if (!sum || opts.showReview) return null;
+  const pct = (x: number) => `${Math.round(x * 100)} %`;
+  const lines = [
+    `Serie ${sum.count} Bälle: ${sum.grade}`,
+    `Tempo Ø ${sum.avgSpeedKmh.toFixed(1).replace(".", ",")} km/h · Spin Ø ${Math.round(sum.avgSpinRps)} U/s`,
+    `Getroffen ${pct(sum.hitRate)} · Platte ${pct(sum.legalRate)} · Ziel ${pct(sum.targetRate)}`,
+  ];
+  return (
+    <>
+      {lines.map((t, i) => (
+        <Label key={i} text={t} color={i === 0 ? "#e6d36a" : "#f8fafc"} bg="rgba(5,9,20,0.92)" height={0.04} position={[0, 0.5 - i * 0.055, 0]} />
+      ))}
+    </>
+  );
 }

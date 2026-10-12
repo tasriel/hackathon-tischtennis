@@ -6,14 +6,16 @@ import { Line2 } from "three/addons/lines/Line2.js";
 import { LineGeometry } from "three/addons/lines/LineGeometry.js";
 import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import { PointerCursorMaterial, PointerRayMaterial } from "@pmndrs/xr/internals";
-import { BALL_RADIUS, RACKET_RADIUS, TABLE } from "@/lib/constants";
+import { BALL_RADIUS, RACKET_RADIUS, TABLE, type ServeType } from "@/lib/constants";
 import { racketPointVel, slowmoBoost, spinType, type BallState, type RacketState } from "@/lib/physics";
 import { DEFAULT_IDEAL, type IdealShot } from "@/lib/idealShot";
-import { settings } from "@/lib/settings";
+import { setSetting, settings } from "@/lib/settings";
 import { STROKES } from "@/lib/strokes";
 import { FREEZE_SCALE } from "@/lib/timescale";
 import { BallModel } from "./BallModel";
 import { Label } from "./Label";
+import { REVIEW_XR_POS } from "./LeftMenu";
+import { series, toRps } from "@/lib/series";
 
 /** Layer nur für die Nahaufnahme (Pfeile, Texte). Hauptkamera sieht ihn nicht. */
 export const OVERLAY_LAYER = 5;
@@ -47,6 +49,15 @@ export type ContactSnapshot = {
   scale: number;
   ideal: IdealShot;
   explain: string;
+  /** erwarteter Schlag (Variante des ankommenden Balls) */
+  kind: ServeType;
+  /** z.B. "Schlag 2/2" */
+  label: string;
+  /** Überschrift der Live-Ansicht */
+  heading: string;
+  /** Optionale, belagspezifische Schlagbezeichnung und Korrektur. */
+  strokeLabel?: string;
+  tip?: string;
 };
 
 export function makeSnapshot(): ContactSnapshot {
@@ -69,6 +80,9 @@ export function makeSnapshot(): ContactSnapshot {
     scale: 1,
     ideal: DEFAULT_IDEAL,
     explain: "",
+    kind: "backspin",
+    label: "Schlag 1",
+    heading: "",
   };
 }
 
@@ -180,6 +194,7 @@ const idealDir = (dirDeg: number, out: THREE.Vector3) => {
 
 /** Kurze, konkrete Korrekturen aus der Abweichung zum Ideal. */
 function advice(s: ContactSnapshot): string[] {
+  if (s.tip) return [s.tip];
   const i = s.ideal;
   const parts: string[] = [];
   const dOpen = i.openDeg - s.openDeg;
@@ -237,6 +252,7 @@ export function SpinOverlay({
   snap,
   ballObj,
   racketObj,
+  attention = false,
 }: {
   ball: BallState;
   racket: RacketState;
@@ -244,6 +260,7 @@ export function SpinOverlay({
   getScale?: () => number;
   ballObj?: React.RefObject<THREE.Object3D | null>;
   racketObj?: React.RefObject<THREE.Object3D | null>;
+  attention?: boolean;
 }) {
   const { gl, scene, camera } = useThree();
   const isXR = useXR((s) => s.session != null);
@@ -298,6 +315,9 @@ export function SpinOverlay({
   });
 
   const panel = useRef<THREE.Mesh>(null);
+  const arrowL = useRef<THREE.Mesh>(null);
+  const arrowR = useRef<THREE.Mesh>(null);
+  const attentionArrow = useRef<THREE.Mesh>(null);
   const frame = useRef<THREE.Mesh>(null);
   const [texts, setTexts] = useState<Texts>({ title: "", state: "", rows: [], verdict: "", verdictC: OK, tip1: "", tip2: "" });
   const tick = useRef(0);
@@ -312,6 +332,13 @@ export function SpinOverlay({
   const replayState = useRef<{ clip: ClipFrame[] | null; start: number }>({ clip: null, start: 0 });
 
   useFrame(() => {
+    // Review ausgeschaltet: Fenster samt Rahmen, Pfeilen und Texten ausblenden, nichts rendern
+    const on = settings.showReview;
+    for (const m of [panel.current, frame.current, labelsRef.current]) if (m) m.visible = on;
+    if (!on) {
+      for (const m of [arrowL.current, arrowR.current, attentionArrow.current]) if (m) m.visible = false;
+      return;
+    }
     const s = snap.current;
     const replay = s.ready && s.clip.length > 2;
     const ideal = s.ideal;
@@ -422,7 +449,7 @@ export function SpinOverlay({
         open = THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(toFar.y, -1, 1)));
       }
       const dir = replay ? s.dirDeg : THREE.MathUtils.radToDeg(Math.atan2(vel.y, Math.max(-vel.z, 1e-3)));
-      const spec = STROKES[settings.serve];
+      const spec = STROKES[s.kind];
       const deg = (d: number) => `${Math.abs(Math.round(d))}° ${d >= 0 ? "offen" : "geschl."}`;
       const sg = (d: number) => `${d >= 0 ? "+" : ""}${Math.round(d)}°`;
       const angleC = grade(Math.abs(open - ideal.openDeg), 8, 18);
@@ -436,17 +463,41 @@ export function SpinOverlay({
         { k: "Richtung", du: sg(dir), ideal: sg(ideal.dirDeg), c: dirC },
       ];
       if (replay) rows.push({ k: "Spin", du: SP[outSpin] ?? "–", ideal: SP[spec.wantSpin]!, c: outSpin === spec.wantSpin ? OK : FAR });
+      if (replay) {
+        const rb = Math.round(toRps(s.spinBefore.length()));
+        const ra = Math.round(toRps(s.spinAfter.length()));
+        rows.push({ k: "U/s", du: `${rb}→${ra}`, ideal: ideal.spinRps != null ? `${Math.round(ideal.spinRps)}` : "–", c: ideal.spinRps != null ? grade(Math.abs(ra - ideal.spinRps), 4, 9) : TEXT_MUTED });
+      }
       const vd = replay ? verdict(rows.map((r) => r.c)) : { text: "", color: OK };
-      const [tip1, tip2] = replay ? twoLines(advice(s)) : twoLines([spec.tip], 34);
+      const [tip1, tip2] = replay ? twoLines(advice(s)) : twoLines([s.tip ?? spec.tip], 34);
       const next: Texts = {
-        title: replay ? (paused ? "Balltreffpunkt" : `Replay: ${spec.stroke}`) : `${spec.serveLabel} → ${spec.stroke}`,
-        state: replay ? (paused ? "Treffpunkt hält 1 s" : "Schleife bis zum nächsten Ball") : "Live",
+        title: replay ? (paused ? `${s.label} · Balltreffpunkt` : `Replay ${s.label}: ${s.strokeLabel ?? spec.stroke}`) : s.heading || `${spec.serveLabel} → ${s.strokeLabel ?? spec.stroke}`,
+        state: replay
+          ? `${paused ? "Treffpunkt hält 1 s" : "Schleife bis zum nächsten Ball"}${settings.reviewCount > 1 ? " · ◀ ▶ wechseln" : ""}`
+          : `Live · ${s.label}`,
         rows,
         verdict: vd.text,
         verdictC: vd.color,
         tip1,
         tip2,
       };
+      const sum = series.summary;
+      if (sum) {
+        const pct = (x: number) => `${Math.round(x * 100)} %`;
+        next.title = `Serie: ${sum.count} Bälle · ${STROKES[settings.serve].serveLabel}`;
+        next.state = "Auswertung · nächster Ball startet normal";
+        next.rows = [
+          { k: "Tempo Ø", du: `${sum.avgSpeedKmh.toFixed(1).replace(".", ",")} km/h`, ideal: "", c: TEXT_MUTED },
+          { k: "Spin Ø", du: `${Math.round(sum.avgSpinRps)} U/s`, ideal: `${pct(sum.rightSpinRate)} richtig`, c: TEXT_MUTED },
+          { k: "Getroffen", du: pct(sum.hitRate), ideal: "", c: TEXT_MUTED },
+          { k: "Platte", du: pct(sum.legalRate), ideal: "", c: TEXT_MUTED },
+          { k: "Ziel", du: pct(sum.targetRate), ideal: "", c: TEXT_MUTED },
+        ];
+        next.verdict = `Bewertung: ${sum.grade}`;
+        next.verdictC = sum.grade === "Sehr gut" ? OK : sum.grade === "Solide" ? "#e6d36a" : FAR;
+        next.tip1 = sum.grade === "Üben" ? "Technik im Review einzeln vergleichen," : "Weiter so – probiere eine andere";
+        next.tip2 = sum.grade === "Üben" ? "dann neue Serie starten." : "Schnitt-Variante oder ein anderes Ziel.";
+      }
       if (JSON.stringify(next) !== JSON.stringify(texts)) setTexts(next);
     }
 
@@ -472,6 +523,8 @@ export function SpinOverlay({
     const liveBallWasVisible = bo?.visible;
     if (replay && bo) bo.visible = false;
     if (reviewBall.current) reviewBall.current.visible = replay;
+    if (arrowL.current) arrowL.current.visible = false;
+    if (arrowR.current) arrowR.current.visible = false;
     try {
       gl.render(scene, cam);
     } finally {
@@ -491,9 +544,10 @@ export function SpinOverlay({
     const p = panel.current;
     if (!p) return;
     if (isXR) {
-      p.position.set(-0.58, 1.34, 1.18);
-      p.rotation.set(0, 0.55, 0);
-      p.scale.set(0.62, 0.35, 1);
+      // neben der Platte links, zum Spieler gedreht, groß genug zum Lesen
+      p.position.copy(REVIEW_XR_POS);
+      p.rotation.set(0, 0.85, 0);
+      p.scale.set(0.8, 0.45, 1);
     } else {
       const pc = camera as THREE.PerspectiveCamera;
       const d = 0.5;
@@ -511,12 +565,44 @@ export function SpinOverlay({
     if (f) {
       f.position.copy(p.position);
       f.quaternion.copy(p.quaternion);
-      const pulse = snap.current.ready ? 1 + Math.sin(performance.now() * 0.006) * 0.025 : 1;
+      const pulse = attention
+        ? 1 + Math.sin(performance.now() * 0.014) * 0.065
+        : snap.current.ready
+          ? 1 + Math.sin(performance.now() * 0.006) * 0.025
+          : 1;
       f.scale.set(p.scale.x * 1.035 * pulse, p.scale.y * 1.055 * pulse, 1);
       const fm = f.material as THREE.MeshBasicMaterial;
-      fm.color.set(snap.current.ready ? VIOLET : "#111827");
+      fm.color.set(attention ? USER : snap.current.ready ? VIOLET : "#111827");
     }
+    const aa = attentionArrow.current;
+    if (aa) {
+      aa.visible = attention;
+      aa.quaternion.copy(p.quaternion);
+      aa.position.copy(_v.set(-(p.scale.x / 2 + p.scale.y * 0.18), 0, 0.002).applyQuaternion(p.quaternion).add(p.position));
+      aa.scale.setScalar(p.scale.y * (0.12 + Math.sin(now * 0.014) * 0.025));
+    }
+    // Pfeile zum Wechseln zwischen den Schlagaufnahmen
+    const many = settings.reviewCount > 1;
+    [arrowL.current, arrowR.current].forEach((a, i) => {
+      if (!a) return;
+      const side = i === 0 ? -1 : 1;
+      const active = side < 0 ? settings.reviewIndex > 0 : settings.reviewIndex < settings.reviewCount - 1;
+      a.visible = many;
+      a.quaternion.copy(p.quaternion);
+      a.position.copy(_v.set(side * (p.scale.x / 2 + p.scale.y * 0.12), 0, 0.001).applyQuaternion(p.quaternion).add(p.position));
+      a.scale.setScalar(p.scale.y * 0.09);
+      (a.material as THREE.MeshBasicMaterial).color.set(active ? VIOLET_SOFT : "#475569");
+    });
   });
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === "Comma") stepReview(-1);
+      if (e.code === "Period") stepReview(1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   return (
     <>
@@ -540,10 +626,29 @@ export function SpinOverlay({
         <Label text={texts.tip1} anchor="left" position={[0, -0.15, -0.44]} height={0.028} color="#e6d36a" bg="rgba(0,0,0,0)" />
         <Label text={texts.tip2} anchor="left" position={[0, -0.188, -0.44]} height={0.028} color="#e6d36a" bg="rgba(0,0,0,0)" />
       </group>
+      {[-1, 1].map((side) => (
+        <mesh
+          key={side}
+          ref={side < 0 ? arrowL : arrowR}
+          renderOrder={1001}
+          visible={false}
+          onClick={(e) => {
+            e.stopPropagation();
+            stepReview(side);
+          }}
+        >
+          <circleGeometry args={[1, 3, side < 0 ? Math.PI : 0]} />
+          <meshBasicMaterial color={VIOLET_SOFT} transparent opacity={1} depthTest={false} depthWrite={false} />
+        </mesh>
+      ))}
       <mesh ref={frame} renderOrder={999} onUpdate={(m) => m.layers.set(PANEL_LAYER)}>
         <planeGeometry args={[1, 1]} />
         {/* Volle Deckkraft, aber in der transparenten Render-Gruppe nach dem Netz zeichnen. */}
         <meshBasicMaterial color="#111827" transparent opacity={1} depthTest={false} depthWrite={false} />
+      </mesh>
+      <mesh ref={attentionArrow} renderOrder={1001} visible={false} rotation={[0, 0, -Math.PI / 2]} onUpdate={(m) => m.layers.set(PANEL_LAYER)}>
+        <circleGeometry args={[1, 3]} />
+        <meshBasicMaterial color={USER} transparent opacity={1} depthTest={false} depthWrite={false} />
       </mesh>
       <mesh ref={panel} renderOrder={1000} onUpdate={(m) => m.layers.set(PANEL_LAYER)}>
         <planeGeometry args={[1, 1]} />
@@ -557,4 +662,10 @@ export function SpinOverlay({
 function idealPos(contact: THREE.Vector3, dir: THREE.Vector3, speed: number, t: number, out: THREE.Vector3) {
   const tc = THREE.MathUtils.clamp(t, -0.3, 0.2);
   return out.copy(contact).addScaledVector(dir, speed * tc);
+}
+
+function stepReview(d: number) {
+  const n = settings.reviewCount;
+  if (n < 2) return;
+  setSetting("reviewIndex", THREE.MathUtils.clamp(settings.reviewIndex + d, 0, n - 1));
 }
