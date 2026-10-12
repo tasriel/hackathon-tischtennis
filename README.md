@@ -95,3 +95,10 @@ Die angezeigte lokale Adresse im Browser öffnen. Für WebXR auf der Quest ist e
 ## Technik und Grenzen
 
 React 19, TanStack Start, Three.js, React Three Fiber und `@react-three/xr` zeichnen die WebXR-Szene. Simulation, Vorhersage und Coaching-Regeln laufen clientseitig; es gibt weder Backend noch Benutzerkonten. Das Projekt ist ein Lernprototyp, kein wissenschaftlich exakter Ballflug-Simulator und kein Match mit Gegner, Punkten oder Mehrspielerbetrieb. Die tatsächliche Darstellung und Interaktion auf einer Meta Quest 3 muss noch am Gerät geprüft werden.
+
+## Datenschutz
+
+- Die Seite lädt keine externen Ressourcen. Die Schriften Figtree und Outfit liegen lokal in `public/fonts/` und werden in `src/styles.css` per `@font-face` eingebunden (kein Google Fonts mehr).
+- Unten links in `src/routes/__root.tsx` stehen Links zu Impressum und Datenschutzerklärung, die zentral auf `start.icken.eu` liegen.
+- `src/lib/lovable-error-reporting.ts` ruft nur Hook-Funktionen auf, die laut Code nur in der Lovable-Editor-Vorschau existieren; es gibt keinen eigenen Sendeaufruf an einen Fremddienst. Wird ein Tracking- oder Fehlerdienst ergänzt, muss die Datenschutzerklärung angepasst werden.
+
